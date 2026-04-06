@@ -16,7 +16,11 @@ int in2Pin = 7;       // Define L293D channel 2 pin
 int enable1Pin = 6;  // Define L293D enable 1 pin 
 int posservo;                // variable to store the servo position 
 int servoPin = 5;           // define the pin of servo signal line 
+int touchPin = 3;           // touch pin
 const int tempPin = A0;
+const int micPin = A1;// Define the pin connected to the microphone
+volatile bool touched = false;
+
 // Replace with your network credentials
  char* ssid     = "Sunrise_2.4GHz_3C4FAC"; //Enter the router name 
  char* password = "Mp723phn3frd"; //Enter the router password  
@@ -38,7 +42,17 @@ void setup() {
   pinMode(in1Pin, OUTPUT); 
   pinMode(in2Pin, OUTPUT); 
   pinMode(enable1Pin, OUTPUT); 
-  pinMode(tempPin, INPUT);   // Explicitly set A0 as an input (optional but recommended)
+   // Explicitly set A0 as an input (optional but recommended)
+  pinMode(tempPin, INPUT); 
+  // Microphone Analog input A1 
+  pinMode(micPin, INPUT); 
+   // set push touch pin into input mode 
+  pinMode(touchPin, INPUT); 
+  // Attach the interrupt to the touch sensor
+  // digitalPinToInterrupt(3) maps the physical pin to the interrupt number
+  // RISING means the trigger happens when the signal goes from LOW to HIGH
+  attachInterrupt(digitalPinToInterrupt(touchPin), handleTouchInterrupt, RISING); 
+
 
   // attaches the servo on servoPin to the servo object 
   myservo.attach(servoPin); 
@@ -88,7 +102,16 @@ void loop() {
   posservo= random(0, 181);
   moveServo(posservo);
   readAndDisplayTemperature();
+  delay(50);
   readDHTSensor();
+  delay(50);
+  readMicrophone();
+  if (touched) {
+    displayDetectionTouch();
+    
+    // Reset the flag so we don't print repeatedly for one touch
+    touched = false; 
+  }
 } 
 
 
@@ -192,4 +215,25 @@ void readDHTSensor() {
     Serial.print(event.temperature); 
     Serial.println("℃"); 
   } 
+}
+
+// Custom function to handle the microphone logic
+void readMicrophone() {
+  // Read the analog value from the sensor
+  int sensorValue = analogRead(micPin);
+
+  // Send the value to the Serial Monitor/Plotter
+  Serial.print("Microphone: "); 
+  Serial.println(sensorValue);
+}
+
+
+// The Interrupt Service Routine (ISR) - must be fast!
+void handleTouchInterrupt() {
+  touched = true; 
+}
+
+// Custom function to handle the push touche logic
+void displayDetectionTouch() {
+Serial.println("Touch Detected!");
 }
