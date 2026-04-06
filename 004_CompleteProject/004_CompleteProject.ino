@@ -3,6 +3,10 @@
 #include <Adafruit_Sensor.h> 
 #include <DHT.h> 
 #include <DHT_U.h>
+#include "StepperControl.h"
+#include "DCMotorControl.h"
+#include "ServoControl.h"
+#include "SensorReadings.h"
 
 #define Voltage_Offset -0.34 // Measuring the offset voltage of the 5V power pin can 
 #define DHTPIN 2     // Digital pin connected to the DHT sensor  
@@ -84,28 +88,28 @@ void setup() {
  
 void loop() { 
   // Rotate a full turn 
-  moveSteps(false, 2 * 64, 20); 
+  moveSteps(outPorts, false, 2 * 64, 20); 
   delay(1000); 
   // Rotate a full turn towards another direction 
-  moveSteps(true, 2 * 64, 20); 
+  moveSteps(outPorts, true, 2 * 64, 20); 
   delay(1000); 
-  driveMotor(rotationDir,map(rotationSpeed, 0, 512, 0, 255)); 
+  driveMotor(in1Pin, in2Pin, enable1Pin, rotationDir,map(rotationSpeed, 0, 512, 0, 255)); 
   rotationDir = !rotationDir;
   delay(1000);
-  driveMotor(rotationDir,map(0, 0, 512, 0, 255)); 
+  driveMotor(in1Pin, in2Pin, enable1Pin, rotationDir,map(0, 0, 512, 0, 255)); 
   delay(500);
-  driveMotor(rotationDir,map(rotationSpeed, 0, 512, 0, 255)); 
+  driveMotor(in1Pin, in2Pin, enable1Pin, rotationDir,map(rotationSpeed, 0, 512, 0, 255)); 
   rotationDir = !rotationDir;
   delay(1000);
-  driveMotor(rotationDir,map(0, 0, 512, 0, 255)); 
+  driveMotor(in1Pin, in2Pin, enable1Pin, rotationDir,map(0, 0, 512, 0, 255)); 
   delay(1000);
   posservo= random(0, 181);
-  moveServo(posservo);
-  readAndDisplayTemperature();
+  moveServo(myservo, posservo);
+  readAndDisplayTemperature(tempPin);
   delay(50);
-  readDHTSensor();
+  readDHTSensor(dht);
   delay(50);
-  readMicrophone();
+  readMicrophone(micPin);
   if (touched) {
     displayDetectionTouch();
     
@@ -114,130 +118,7 @@ void loop() {
   }
 } 
 
-
-// from here down we will put all the functions 
-// control the stepper motor
-
-void moveSteps(bool dir, int steps, unsigned int ms) { 
-  for (int i = 0; i < steps; i++) { 
-    moveOneStep(dir); // Rotate a step 
-    delay(ms);        // Control the speed 
-  } 
-      Serial.println(" Stepper moved");
-} 
-
-void moveOneStep(bool dir) { 
-  // Define a variable, use four low bit to indicate the state of port 
-  static byte out = 0x01; 
-  // Decide the shift direction according to the rotation direction 
-  if (dir) {
-      out = (out << 1);
-      if (out > 0x08) out = 0x01;
-  } else {
-      out = (out >> 1);
-      if (out == 0x00) out = 0x08;
-  } 
-  // Output singal to each port 
-  for (int i = 0; i < 4; i++) {
-      digitalWrite(outPorts[i], (out & (0x01 << i)) ? HIGH : LOW); 
-  } 
-} 
-
-
-// Control the servo
-void moveServo(int pos) {
-    // On limite la valeur reçue "pos" et on stocke le résultat dans "posservo"
-    int poslimit = constrain(pos, 0, 180); 
-    
-    // On utilise la valeur limitée pour piloter le servo
-    myservo.write(poslimit); 
-      Serial.println(" Servo moved");
-
-}
-
-
-//Drie the dc motor
-void driveMotor(boolean dir, int spd) { 
-  // Control motor rotation direction 
-  if (dir) { 
-    digitalWrite(in1Pin, HIGH); 
-    digitalWrite(in2Pin, LOW); 
-  } 
- else { 
-    digitalWrite(in1Pin, LOW); 
-    digitalWrite(in2Pin, HIGH); 
-  } 
-  // Control motor rotation speed  
-  analogWrite(enable1Pin, constrain(spd, 0, 255)); 
-  if (spd >0){
-  Serial.println(" DC moved");
-  }
-} 
-
-void readAndDisplayTemperature() {
-  // 1. Read the raw value from Analog Pin A0 (returns 0 to 1023)
-  int adcVal = analogRead(A0);
-
- // Calculate voltage 
-  float v = adcVal * 5.0 / 1024; 
-  // Calculate resistance value of thermistor 
-  float Rt = 10 * v / (5 - v); 
-  // Calculate temperature (Kelvin) 
-  float tempK = 1 / (log(Rt / 10) / 3950 + 1 / (273.15 + 25)); 
-  // Calculate temperature (Celsius) 
-  float tempC = tempK - 273.15; 
-
-  Serial.print("Current temperature is: "); 
-  Serial.print(tempK); 
-  Serial.print(" K, "); 
-  Serial.print(tempC); 
-  Serial.println(" C");
-  Serial.print("Raw ADC: "); Serial.println(adcVal);
-}
-
-void readDHTSensor() {
-    delay(1000);
-
-  sensors_event_t event;
-
-  dht.humidity().getEvent(&event); 
-  if (isnan(event.relative_humidity)) { 
-    Serial.println("Error reading humidity!"); 
-  } 
-  else { 
-    Serial.print("Humidity: "); 
-    Serial.print(event.relative_humidity); 
-    Serial.print("%, "); 
-  } 
- 
-  dht.temperature().getEvent(&event); 
-    if (isnan(event.temperature)) { 
-    Serial.println("Error reading temperature!"); 
-  } 
-  else { 
-    Serial.print("Temperature: "); 
-    Serial.print(event.temperature); 
-    Serial.println("℃"); 
-  } 
-}
-
-// Custom function to handle the microphone logic
-void readMicrophone() {
-  // Read the analog value from the sensor
-  int sensorValue = analogRead(micPin);
-
-  // Send the value to the Serial Monitor/Plotter
-  Serial.print("Microphone: "); 
-  Serial.println(sensorValue);
-}
-
-
 // The Interrupt Service Routine (ISR) - must be fast!
 void handleTouchInterrupt() {
   touched = true; 
-}
-
-// Custom function to handle the push touche logic
-void displayDetectionTouch() {
-Serial.println("Touch Detected!");
 }
