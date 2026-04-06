@@ -116,6 +116,7 @@ void loop() {
 
 
 // from here down we will put all the functions 
+// control the stepper motor
 
 void moveSteps(bool dir, int steps, unsigned int ms) { 
   for (int i = 0; i < steps; i++) { 
@@ -124,17 +125,6 @@ void moveSteps(bool dir, int steps, unsigned int ms) {
   } 
       Serial.println(" Stepper moved");
 } 
-
-
-void moveServo(int pos) {
-    // On limite la valeur reçue "pos" et on stocke le résultat dans "posservo"
-    int poslimit = constrain(pos, 0, 180); 
-    
-    // On utilise la valeur limitée pour piloter le servo
-    myservo.write(poslimit); 
-      Serial.println(" Servo moved");
-
-}
 
 void moveOneStep(bool dir) { 
   // Define a variable, use four low bit to indicate the state of port 
@@ -153,6 +143,20 @@ void moveOneStep(bool dir) {
   } 
 } 
 
+
+// Control the servo
+void moveServo(int pos) {
+    // On limite la valeur reçue "pos" et on stocke le résultat dans "posservo"
+    int poslimit = constrain(pos, 0, 180); 
+    
+    // On utilise la valeur limitée pour piloter le servo
+    myservo.write(poslimit); 
+      Serial.println(" Servo moved");
+
+}
+
+
+//Drie the dc motor
 void driveMotor(boolean dir, int spd) { 
   // Control motor rotation direction 
   if (dir) { 
