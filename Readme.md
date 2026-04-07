@@ -68,3 +68,23 @@ Reason: control signals are interpreted relative to ground; without common groun
 ## Session Notes
 - Work is done step by step; no large code dump unless requested.
 - Current focus remains PCB and hardware reliability first.
+
+## Today Progress (Apr 6, 2026)
+- Reviewed and validated sketch structure in `003_SM_DC_Servo` and `004_CompleteProject`.
+- Refactored actuator and sensor logic out of the main `.ino` into separate C++ modules in `004_CompleteProject`:
+  - `StepperControl.h/.cpp`
+  - `DCMotorControl.h/.cpp`
+  - `ServoControl.h/.cpp`
+  - `SensorReadings.h/.cpp`
+- Updated `004_CompleteProject.ino` to keep `setup()` and `loop()` as orchestrator code and call functions from the new modules.
+- Kept ISR `handleTouchInterrupt()` in the main sketch and routed touch display through module function.
+- Confirmed FreeRTOS availability on UNO R4 WiFi through `Arduino_FreeRTOS.h`; `task.h` is included internally by that header.
+
+## Next Session Plan (FreeRTOS Migration)
+- Convert to task-based architecture with at least three tasks:
+  - TaskStepper
+  - TaskDCMotor
+  - TaskServo
+- Add sensor task integration (thermistor, DHT11, microphone, touch) and shared-state strategy.
+- Replace blocking `delay()` patterns with RTOS-safe timing (`vTaskDelay` / tick-based scheduling).
+- Define task priorities, stack sizes, and safe communication primitives (queues/mutex if needed).
