@@ -1,5 +1,5 @@
-
-#define SERVO_H
+#ifndef SERVO_CONTROL_H
+#define SERVO_CONTROL_H
 
 #include <Arduino.h>
 #include <Servo.h>
@@ -12,3 +12,4 @@ extern const uint8_t servoPin;
 // The "Menu" item for other files to call
 void doServoSequence();
 
+#endif
