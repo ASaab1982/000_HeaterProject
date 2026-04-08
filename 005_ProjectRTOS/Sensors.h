@@ -1,3 +1,4 @@
+#ifndef SENSORS_H
 #define SENSORS_H
 #include <Arduino.h>
 #include <DHT.h>
@@ -8,3 +9,5 @@ extern float dht_h, dht_t;
 
 void doThermistorRead();
 void doDHTRead();
+
+#endif

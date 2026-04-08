@@ -8,9 +8,10 @@
 #include "Stepper.h"
 #include "Sensors.h"
 #include "DCMotor.h"
-#include "Servo.h"
+#include "ServoControl.h"
 #include "MicRead.h"
 #include "TouchDisplay.h"
+#include "Secrets.h"
 
 // -------------------- Pins / constants (same as your sketch) --------------------
 /*
@@ -52,9 +53,6 @@ Servo myservo;
 // -------------------- Globals --------------------
 
 
-// Replace with your network credentials
- char* ssid     = "Sunrise_2.4GHz_3C4FAC"; //Enter the router name 
- char* password = "Mp723phn3frd"; //Enter the router password  
 static WiFiServer server(80);
 /*
 **********************************
@@ -274,8 +272,8 @@ void setup() {
 
   // WiFi (kept from your setup)
   Serial.print(F("Connecting to "));
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
+  Serial.println(WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);

@@ -9,11 +9,13 @@
 #include "Stepper.h"
 #include "Sensors.h"
 #include "DCMotor.h"
-#include "Servo.h"
+#include "ServoControl.h"
+#include "MicRead.h"
+#include "TouchDisplay.h"
 
 // --- Global Pins ---
 extern const int outPorts[4];
-extern const uint8_t in1Pin, in2Pin, enable1Pin;
+extern const uint8_t in1Pin, in2Pin, enablePin;
 extern const uint8_t servoPin, touchPin, tempPin, micPin;
 extern const int rotationSpeed;
 

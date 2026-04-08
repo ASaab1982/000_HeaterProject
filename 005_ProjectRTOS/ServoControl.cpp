@@ -1,4 +1,4 @@
-#include "Servo.h"
+#include "ServoControl.h"
 #include <Arduino_FreeRTOS.h>
 
 void doServoSequence() {

@@ -88,3 +88,25 @@ Reason: control signals are interpreted relative to ground; without common groun
 - Add sensor task integration (thermistor, DHT11, microphone, touch) and shared-state strategy.
 - Replace blocking `delay()` patterns with RTOS-safe timing (`vTaskDelay` / tick-based scheduling).
 - Define task priorities, stack sizes, and safe communication primitives (queues/mutex if needed).
+
+## Review Update (Apr 8, 2026) - `005_ProjectRTOS`
+- Reviewed folder `005_ProjectRTOS` structure and module split:
+  - Main sketch: `005_ProjectRTOS.ino`
+  - Modules: `Stepper`, `DCMotor`, `Servo`, `Sensors`, `MicRead`, `TouchDisplay`
+- Current RTOS architecture is task-per-function with task notifications:
+  - `TaskMasterTimer` triggers worker tasks every second in a 10-second cycle
+  - Worker tasks block on `ulTaskNotifyTake(...)` and run when notified
+- Positive points:
+  - Runtime task timing mostly uses `vTaskDelay(...)`
+  - Monitoring task prints stack high-water marks and heap usage
+  - Clear modular organization for actuators and sensors
+- Risks/issues observed:
+  - Wi-Fi credentials are currently hardcoded in source
+  - Touch interrupt can fire before `hTouch` is created, so ISR notification should be guarded
+  - Header consistency cleanup needed (`enable1Pin` vs `enablePin`, include guard style)
+  - Local file name `Servo.h` may conflict with Arduino Servo library naming
+- Recommended next hardening pass:
+  - Guard ISR notify with handle null-check logic
+  - Normalize header guards in all module headers
+  - Rename local servo module files to avoid naming collision (for example `ServoAction.h/.cpp`)
+  - Move credentials to a separate local config file excluded from version control
