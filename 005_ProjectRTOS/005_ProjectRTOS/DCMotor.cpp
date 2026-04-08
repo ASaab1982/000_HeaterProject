@@ -10,7 +10,4 @@ void driveDCMotor(bool dir, int spd) {
   }
 
   analogWrite(enablePin, map(spd, 0,512, 0, 255));
-  if (spd > 0) {
-    Serial.println(" DC moved");
-  }
 }

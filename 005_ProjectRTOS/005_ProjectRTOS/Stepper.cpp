@@ -20,5 +20,4 @@ void doStepperSequence() {
     moveOneStep(false);
     vTaskDelay(pdMS_TO_TICKS(20));
   }
-  vTaskDelay(pdMS_TO_TICKS(1000));
 }

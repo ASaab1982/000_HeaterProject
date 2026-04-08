@@ -10,7 +10,20 @@ void doThermistorRead() {
 }
 
 void doDHTRead() {
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    dht_h = dht.readTemperature(); // Example update
-    // ... rest of your DHT logic
+    // No more vTaskDelay here!
+    
+    // Read the values immediately
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+    if (isnan(h) || isnan(t)) {
+        Serial.println(F("Error: DHT sensor failed!"));
+    } else {
+        dht_h = h; // Update global variables
+        dht_t = t;
+        Serial.print(F("Hum: ")); Serial.print(dht_h);
+        Serial.print(F("%, Temp: ")); Serial.print(dht_t);
+        Serial.println(F("C"));
+    }
+    // The task will now finish in milliseconds and wait 10s for the next signal
 }

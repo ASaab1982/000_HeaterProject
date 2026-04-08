@@ -85,10 +85,12 @@ static TaskHandle_t hDHT       = nullptr;
 static TaskHandle_t hMic       = nullptr;
 static TaskHandle_t hTouch     = nullptr;
 static TaskHandle_t hMonitor   = nullptr;
+static TaskHandle_t hMaster    = nullptr;
+
 
 // -------------------- Touch ISR --------------------
 void handleTouchInterrupt() {
-  touched = true;
+  vTaskNotifyGiveFromISR(hTouch, NULL);
 }
 
 
@@ -102,6 +104,7 @@ static void printRtosStats() {
   if (hMic)     { Serial.print(F("Mic       : ")); Serial.println(uxTaskGetStackHighWaterMark(hMic)); }
   if (hTouch)   { Serial.print(F("Touch     : ")); Serial.println(uxTaskGetStackHighWaterMark(hTouch)); }
   if (hMonitor) { Serial.print(F("Monitor   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMonitor)); }
+  if (hMaster) { Serial.print(F("Master   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMaster)); }
 
   Serial.println("---- RTOS Stats ----");
   Serial.print(F("FreeHeap=")); Serial.println(xPortGetFreeHeapSize());
@@ -151,14 +154,41 @@ puis donne le signal au moteur DC. C'est une manière très propre de créer une
 qui bloquerait tout ton programme.
 
 */
+
+static void TaskMasterTimer(void* pv) {
+  (void)pv;
+  int currentSecond = 0;
+
+  for (;;) {
+    // 1. Check which task to trigger based on the second
+    switch (currentSecond) {
+      case 0: xTaskNotifyGive(hStepper); break;
+      case 1: xTaskNotifyGive(hDC);      break;
+      case 2: xTaskNotifyGive(hServo);   break;
+      case 3: xTaskNotifyGive(hTherm);   break;
+      case 4: xTaskNotifyGive(hDHT);     break;
+      case 5: xTaskNotifyGive(hMic);     break;
+    }
+
+    // 2. Increment time
+    currentSecond++;
+    if (currentSecond >= 10) {
+      currentSecond = 0; // Reset every 10 seconds
+      Serial.println(F("--- New 10s Cycle Started ---"));
+    }
+
+    // 3. Wait exactly 1 second
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+
 static void TaskStepper(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     doStepperSequence();
     Serial.println(F("Stepper moved"));
-    xTaskNotifyGive(hDC);
   }
 }
 
@@ -166,11 +196,8 @@ static void TaskDC(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     driveDCMotor(dir, spd);
-    
     Serial.println(F("DC moved"));
-    xTaskNotifyGive(hServo);
   }
 }
 
@@ -178,9 +205,7 @@ static void TaskServo(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     doServoSequence();
-    xTaskNotifyGive(hTherm);
   }
 }
 
@@ -188,19 +213,14 @@ static void TaskThermistor(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-    doThermistorRead();
-    xTaskNotifyGive(hDHT);
-  }
+    doThermistorRead();  }
 }
 
 static void TaskDHT(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     doDHTRead();
-    xTaskNotifyGive(hMic);
   }
 }
 
@@ -208,9 +228,7 @@ static void TaskMic(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     doMicRead();
-    xTaskNotifyGive(hTouch);
   }
 }
 
@@ -218,9 +236,7 @@ static void TaskTouch(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
     doTouchDisplay();
-    xTaskNotifyGive(hStepper); // start next cycle
   }
 } 
 
@@ -251,7 +267,7 @@ void setup() {
   pinMode(tempPin, INPUT);
   pinMode(micPin, INPUT);
 
-  pinMode(touchPin, INPUT);
+  pinMode(touchPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(touchPin), handleTouchInterrupt, RISING);
 
   myservo.attach(servoPin);
@@ -349,13 +365,11 @@ BaseType_t ok;
   ok =   xTaskCreate(TaskMonitor, "Monitor", 60, nullptr, 1, &hMonitor);
   if (ok != pdPASS) { Serial.println(F("Monitor create failed")); for(;;){} }
 
+  ok = xTaskCreate(TaskMasterTimer, "Master", 100, nullptr, 3, &hMaster);
+  if (ok != pdPASS) { Serial.println(F("Task Master Time create failed")); for(;;){} }
 
   Serial.print("Free heap bytes: ");
-Serial.println(xPortGetFreeHeapSize());
-
-  if (hStepper == nullptr) { Serial.println(F("hStepper null")); for(;;){} }
-  // Kick off the chain
-  xTaskNotifyGive(hStepper);
+  Serial.println(xPortGetFreeHeapSize());
 
   vTaskStartScheduler();
 }
