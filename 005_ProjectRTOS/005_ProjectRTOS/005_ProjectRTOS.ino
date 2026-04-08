@@ -5,7 +5,12 @@
 #include <WiFiS3.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
-#include <DHT_U.h>
+#include "Stepper.h"
+#include "Sensors.h"
+#include "DCMotor.h"
+#include "Servo.h"
+#include "MicRead.h"
+#include "TouchDisplay.h"
 
 // -------------------- Pins / constants (same as your sketch) --------------------
 /*
@@ -26,31 +31,30 @@ Cela évite de recréer la variable à chaque fois qu'une fonction est appelée,
 #define DHTPIN 2
 #define DHTTYPE DHT11
 
-static const int outPorts[4] = {13, 12, 11, 10};
+// Define all variables here (no 'static') so the 'extern' in .h files can find them
+const int outPorts[4] = {13, 12, 11, 10};
+const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6;
+const uint8_t tempPin = A0;
+const int rotationSpeed = 256;
+const uint8_t micPin = A1;
+const uint8_t touchPin = 3;
+volatile bool touched = false;
+const bool dir =1; 
+const int spd =256; 
+DHT dht(2, DHT11);
+float dht_h, dht_t;
+// Remove 'static' so ServoAction.cpp can see these!
+const uint8_t servoPin = 5;
+Servo myservo;
 
-static const uint8_t in1Pin = 8;
-static const uint8_t in2Pin = 7;
-static const uint8_t enable1Pin = 6;
-
-static const uint8_t servoPin = 5;
-
-static const uint8_t touchPin = 3;
-
-static const uint8_t tempPin = A0;
-static const uint8_t micPin  = A1;
-
-static const int rotationSpeed = 256;
+// Your setup() and RTOS tasks remain here...
 
 // -------------------- Globals --------------------
-static volatile bool touched = false;
+
 
 // Replace with your network credentials
  char* ssid     = "Sunrise_2.4GHz_3C4FAC"; //Enter the router name 
  char* password = "Mp723phn3frd"; //Enter the router password  
-
-
-static DHT_Unified dht(DHTPIN, DHTTYPE);
-static Servo myservo;
 static WiFiServer server(80);
 /*
 **********************************
@@ -87,154 +91,21 @@ void handleTouchInterrupt() {
   touched = true;
 }
 
-// -------------------- Low-level helpers (RTOS-safe) --------------------
-static void moveOneStep(bool dir) {
-  static byte out = 0x01;
-
-  if (dir) {
-    out = (out << 1);
-    if (out > 0x08) out = 0x01;
-  } else {
-    out = (out >> 1);
-    if (out == 0x00) out = 0x08;
-  }
-
-  for (int i = 0; i < 4; i++) {
-    digitalWrite(outPorts[i], (out & (0x01 << i)) ? HIGH : LOW);
-  }
-}
-
-static void doStepperSequence() {
-  // from your loop():
-  // moveSteps(false, 2*64, 20); delay(1000);
-  for (int i = 0; i < (2 * 64); i++) {
-    moveOneStep(false);
-    vTaskDelay(pdMS_TO_TICKS(20));
-  }
-  vTaskDelay(pdMS_TO_TICKS(1000));
-
-  // moveSteps(true, 2*64, 20); delay(1000);
-  for (int i = 0; i < (2 * 64); i++) {
-    moveOneStep(true);
-    vTaskDelay(pdMS_TO_TICKS(20));
-  }
-  vTaskDelay(pdMS_TO_TICKS(1000));
-}
-
-static void driveMotor(bool dir, int spd) {
-  // same as your driveMotor
-  if (dir) {
-    digitalWrite(in1Pin, HIGH);
-    digitalWrite(in2Pin, LOW);
-  } else {
-    digitalWrite(in1Pin, LOW);
-    digitalWrite(in2Pin, HIGH);
-  }
-  analogWrite(enable1Pin, constrain(spd, 0, 255));
-}
-
-static void doDCSequence() {
-  // from your loop() (rotationDir starts at 0 in original sketch)
-  bool rotationDir = 0;
-
-  driveMotor(rotationDir, map(rotationSpeed, 0, 512, 0, 255));
-  rotationDir = !rotationDir;
-  vTaskDelay(pdMS_TO_TICKS(1000));
-
-  driveMotor(rotationDir, map(0, 0, 512, 0, 255));
-  vTaskDelay(pdMS_TO_TICKS(500));
-
-  driveMotor(rotationDir, map(rotationSpeed, 0, 512, 0, 255));
-  rotationDir = !rotationDir;
-  vTaskDelay(pdMS_TO_TICKS(1000));
-
-  driveMotor(rotationDir, map(0, 0, 512, 0, 255));
-  vTaskDelay(pdMS_TO_TICKS(1000));
-}
-
-static void doServoSequence() {
-  int posservo = random(0, 181);
-  int poslimit = constrain(posservo, 0, 180);
-  myservo.write(poslimit);
-  Serial.println(" Servo moved");
-}
-
-static void doThermistorRead() {
-  // same as your readAndDisplayTemperature()
-  int adcVal = analogRead(tempPin);
-
-  float v = adcVal * 5.0 / 1024;
-  float Rt = 10 * v / (5 - v);
-  float tempK = 1 / (log(Rt / 10) / 3950 + 1 / (273.15 + 25));
-  float tempC = tempK - 273.15;
-
-  Serial.print("Current temperature is: ");
-  Serial.print(tempK);
-  Serial.print(" K, ");
-  Serial.print(tempC);
-  Serial.println(" C");
-  Serial.print("Raw ADC: ");
-  Serial.println(adcVal);
-
-  vTaskDelay(pdMS_TO_TICKS(50)); // matches your delay(50) after temperature
-}
-
-static void doDHTRead() {
-  // same as your readDHTSensor() but RTOS-safe delay
-  vTaskDelay(pdMS_TO_TICKS(1000));
-
-  sensors_event_t event;
-
-  dht.humidity().getEvent(&event);
-  if (isnan(event.relative_humidity)) {
-    Serial.println("Error reading humidity!");
-  } else {
-    Serial.print("Humidity: ");
-    Serial.print(event.relative_humidity);
-    Serial.print("%, ");
-  }
-
-  dht.temperature().getEvent(&event);
-  if (isnan(event.temperature)) {
-    Serial.println("Error reading temperature!");
-  } else {
-    Serial.print("Temperature: ");
-    Serial.print(event.temperature);
-    Serial.println("C");
-  }
-
-  vTaskDelay(pdMS_TO_TICKS(50)); // matches your delay(50) after DHT
-}
-
-static void doMicRead() {
-  int sensorValue = analogRead(micPin);
-  Serial.print("Microphone: ");
-  Serial.println(sensorValue);
-}
-
-static void doTouchDisplay() {
-  if (touched) {
-    Serial.println("Touch Detected!");
-    touched = false;
-  }
-}
-
-
 
 static void printRtosStats() {
     Serial.println("---- Task Stack HWM (words) ----");
-  if (hStepper) { Serial.print("Stepper   : "); Serial.println(uxTaskGetStackHighWaterMark(hStepper)); }
-  if (hDC)      { Serial.print("DC        : "); Serial.println(uxTaskGetStackHighWaterMark(hDC)); }
-  if (hServo)   { Serial.print("Servo     : "); Serial.println(uxTaskGetStackHighWaterMark(hServo)); }
-  if (hTherm)   { Serial.print("Thermistor: "); Serial.println(uxTaskGetStackHighWaterMark(hTherm)); }
-  if (hDHT)     { Serial.print("DHT       : "); Serial.println(uxTaskGetStackHighWaterMark(hDHT)); }
-  if (hMic)     { Serial.print("Mic       : "); Serial.println(uxTaskGetStackHighWaterMark(hMic)); }
-  if (hTouch)   { Serial.print("Touch     : "); Serial.println(uxTaskGetStackHighWaterMark(hTouch)); }
-  if (hMonitor) { Serial.print("Monitor   : "); Serial.println(uxTaskGetStackHighWaterMark(hMonitor)); }
+  if (hStepper) { Serial.print(F("Stepper   : ")); Serial.println(uxTaskGetStackHighWaterMark(hStepper)); }
+  if (hDC)      { Serial.print(F("DC        : ")); Serial.println(uxTaskGetStackHighWaterMark(hDC)); }
+  if (hServo)   { Serial.print(F("Servo     : ")); Serial.println(uxTaskGetStackHighWaterMark(hServo)); }
+  if (hTherm)   { Serial.print(F("Thermistor: ")); Serial.println(uxTaskGetStackHighWaterMark(hTherm)); }
+  if (hDHT)     { Serial.print(F("DHT       : ")); Serial.println(uxTaskGetStackHighWaterMark(hDHT)); }
+  if (hMic)     { Serial.print(F("Mic       : ")); Serial.println(uxTaskGetStackHighWaterMark(hMic)); }
+  if (hTouch)   { Serial.print(F("Touch     : ")); Serial.println(uxTaskGetStackHighWaterMark(hTouch)); }
+  if (hMonitor) { Serial.print(F("Monitor   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMonitor)); }
 
   Serial.println("---- RTOS Stats ----");
-  Serial.print("FreeHeap="); Serial.println(xPortGetFreeHeapSize());
-  Serial.print("MinEver =" ); Serial.println(xPortGetMinimumEverFreeHeapSize());
+  Serial.print(F("FreeHeap=")); Serial.println(xPortGetFreeHeapSize());
+  Serial.print(F("MinEver =" )); Serial.println(xPortGetMinimumEverFreeHeapSize());
 }
 
 
@@ -286,7 +157,7 @@ static void TaskStepper(void* pv) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     doStepperSequence();
-    Serial.println(" Stepper moved");
+    Serial.println(F("Stepper moved"));
     xTaskNotifyGive(hDC);
   }
 }
@@ -296,8 +167,9 @@ static void TaskDC(void* pv) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    doDCSequence();
-    Serial.println(" DC moved");
+    driveDCMotor(dir, spd);
+    
+    Serial.println(F("DC moved"));
     xTaskNotifyGive(hServo);
   }
 }
@@ -374,7 +246,7 @@ void setup() {
 
   pinMode(in1Pin, OUTPUT);
   pinMode(in2Pin, OUTPUT);
-  pinMode(enable1Pin, OUTPUT);
+  pinMode(enablePin, OUTPUT);
 
   pinMode(tempPin, INPUT);
   pinMode(micPin, INPUT);
@@ -385,24 +257,24 @@ void setup() {
   myservo.attach(servoPin);
 
   // WiFi (kept from your setup)
-  Serial.print("Connecting to ");
+  Serial.print(F("Connecting to "));
   Serial.println(ssid);
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Serial.print(F("."));
   }
 
-  Serial.println("\nWiFi Connected! Waiting for DHCP address...");
+  Serial.println(F("\nWiFi Connected! Waiting for DHCP address..."));
   while (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
     delay(10);
-    Serial.print(".");
+    Serial.print(F("."));
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected.");
-  Serial.println("IP address: ");
+  Serial.println(F(""));
+  Serial.println(F("WiFi connected."));
+  Serial.println(F("IP address: "));
   Serial.println(WiFi.localIP());
   server.begin();
 
@@ -448,42 +320,40 @@ void setup() {
 BaseType_t ok;
 
   // Create tasks
-  ok = xTaskCreate(TaskStepper,   "TaskStepper",   80, nullptr, 2, &hStepper);
-  if (ok != pdPASS) { Serial.println("TaskStepper create failed"); for(;;){} }
+  ok = xTaskCreate(TaskStepper,   "TaskStepper",   60, nullptr, 2, &hStepper);
+  if (ok != pdPASS) { Serial.println(F("TaskStepper create failed")); for(;;){} }
 
   ok = xTaskCreate(TaskDC,        "TaskDC",        80, nullptr, 2, &hDC);
-  if (ok != pdPASS) { Serial.println("TaskDC create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskDC create failed")); for(;;){} }
 
 
   ok =  xTaskCreate(TaskServo,     "TaskServo",     80, nullptr, 2, &hServo);
-  if (ok != pdPASS) { Serial.println("TaskServo create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskServo create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskThermistor,"TaskTherm",    100, nullptr, 2, &hTherm);
-  if (ok != pdPASS) { Serial.println("TaskTherm create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskTherm create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskDHT,       "TaskDHT",       200, nullptr, 1, &hDHT);
-  if (ok != pdPASS) { Serial.println("TaskDHT create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskDHT create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskMic,       "TaskMic",       80, nullptr, 1, &hMic);
-  if (ok != pdPASS) { Serial.println("TaskMic create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskMic create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskTouch,     "TaskTouch",    60, nullptr, 2, &hTouch);
-  if (ok != pdPASS) { Serial.println("TaskTouch create failed"); for(;;){} }
+  if (ok != pdPASS) { Serial.println(F("TaskTouch create failed")); for(;;){} }
 
-  ok =   xTaskCreate(TaskMonitor, "Monitor", 100, nullptr, 1, &hMonitor);
-  if (ok != pdPASS) { Serial.println("Monitor create failed"); for(;;){} }
+  ok =   xTaskCreate(TaskMonitor, "Monitor", 60, nullptr, 1, &hMonitor);
+  if (ok != pdPASS) { Serial.println(F("Monitor create failed")); for(;;){} }
 
 
   Serial.print("Free heap bytes: ");
 Serial.println(xPortGetFreeHeapSize());
 
-  if (hStepper == nullptr) { Serial.println("hStepper null"); for(;;){} }
-  xTaskNotifyGive(hStepper);
-
+  if (hStepper == nullptr) { Serial.println(F("hStepper null")); for(;;){} }
   // Kick off the chain
   xTaskNotifyGive(hStepper);
 
