@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arduino LED Control</title>
+    <style>
+      :root {
+        font-family: Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f4f6f8;
+      }
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: min(420px, 90vw);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 1.4rem;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 0.95rem;
+      }
+      button {
+        flex: 1;
+        border: 0;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .on {
+        background: #1b8f3a;
+        color: white;
+      }
+      .off {
+        background: #c53a3a;
+        color: white;
+      }
+      .status {
+        margin-top: 14px;
+        color: #333;
+        font-size: 0.95rem;
+      }
+      .hint {
+        margin-top: 10px;
+        color: #6a6f76;
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Arduino LED Control</h1>
+      <input id="username" placeholder="Username" autocomplete="username" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="row" style="margin-bottom: 10px;">
+        <button onclick="login()">Login</button>
+        <button onclick="logout()">Logout</button>
+      </div>
+      <div class="row">
+        <button class="on" onclick="setLed('on')">ON</button>
+        <button class="off" onclick="setLed('off')">OFF</button>
+      </div>
+      <div class="status" id="status">Current state: loading...</div>
+      <div class="hint">This page sends state to <code>/api/led</code>.</div>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const tokenKey = "ledAuthToken";
+      let authToken = localStorage.getItem(tokenKey) || "";
+
+      function authHeaders() {
+        return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+      }
+
+      async function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+        if (!username || !password) {
+          statusEl.textContent = "Current state: enter username and password first";
+          return;
+        }
+
+        try {
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Login failed");
+          }
+          authToken = data.token;
+          localStorage.setItem(tokenKey, authToken);
+          statusEl.textContent = "Current state: login successful";
+          refreshState();
+        } catch (err) {
+          statusEl.textContent = `Current state: error (${err.message})`;
+        }
+      }
+
+      function logout() {
+        authToken = "";
+        localStorage.removeItem(tokenKey);
+        statusEl.textContent = "Current state: logged out";
+      }
+
+      async function refreshState() {
+        try {
+          const res = await fetch("/api/led", { headers: authHeaders() });
+          if (res.status === 401) {
+            statusEl.textContent = "Current state: login required";
+            return;
+          }
+          const data = await res.json();
+          statusEl.textContent = `Current state: ${data.state}`;
+        } catch (err) {
+          statusEl.textContent = "Current state: error (server offline)";
+        }
+      }
+
+      async function setLed(state) {
+        try {
+          const res = await fetch("/api/led", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ state })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Request failed");
+          }
+          statusEl.textContent = `Current state: ${data.state}`;
+        } catch (err) {
+          statusEl.textContent = `Current state: error (${err.message})`;
+        }
+      }
+
+      refreshState();
+      setInterval(refreshState, 3000);
+    </script>
+  </body>
+</html>
