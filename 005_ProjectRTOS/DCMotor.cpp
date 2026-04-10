@@ -1,4 +1,5 @@
 #include "DCMotor.h"
+#include "ProjectHeater.h"
 
 void driveDCMotor(bool dir, int spd) {
   if (dir) {
@@ -9,5 +10,7 @@ void driveDCMotor(bool dir, int spd) {
     digitalWrite(in2Pin, HIGH);
   }
 
-  analogWrite(enablePin, map(spd, 0,512, 0, 255));
+  analogWrite(enablePin, map(spd, 0,512, 0, 255)); // the PWM value is a fraction of the 255 (maximum register value)
+  g_dcMotorSpeed = map(spd, 0,512, 0, 100); // store the PWM value 
+
 }

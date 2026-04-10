@@ -1,5 +1,6 @@
 #include "Stepper.h"
 #include <Arduino_FreeRTOS.h>
+#include "ProjectHeater.h"
 
 void moveOneStep(bool dir) {
   static byte out = 0x01;

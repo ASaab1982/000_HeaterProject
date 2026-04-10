@@ -12,6 +12,7 @@
 #include "ServoControl.h"
 #include "MicRead.h"
 #include "TouchDisplay.h"
+#include "Secrets.h"
 
 // --- Global Pins ---
 extern const int outPorts[4];
@@ -24,6 +25,13 @@ extern DHT dht;
 extern Servo myservo;
 extern float dht_h, dht_t;
 extern volatile bool touched;
+extern volatile int g_dcMotorSpeed;
+extern volatile int g_micAdc;
+extern volatile float g_thermistorTempC;
+extern volatile float g_dhtTempC;
+extern volatile float g_dhtHumidity;
+extern volatile float g_stepperAngleDeg;
+extern volatile int g_servoPositionDeg;
 
 // --- Function Prototypes ---
 void moveOneStep(bool dir);

@@ -1,17 +1,7 @@
 // #define INCLUDE_uxTaskGetStackHighWaterMark (1) found in FreeRTOSConfig.h
 
-#include <Arduino_FreeRTOS.h>
-#include <Servo.h>
-#include <WiFiS3.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
-#include "Stepper.h"
-#include "Sensors.h"
-#include "DCMotor.h"
-#include "ServoControl.h"
-#include "MicRead.h"
-#include "TouchDisplay.h"
-#include "Secrets.h"
+#include "ProjectHeater.h"
+
 
 // -------------------- Pins / constants (same as your sketch) --------------------
 /*
@@ -39,14 +29,23 @@ const uint8_t tempPin = A0;
 const int rotationSpeed = 256;
 const uint8_t micPin = A1;
 const uint8_t touchPin = 3;
-volatile bool touched = false;
 const bool dir =1; 
 const int spd =256; 
 DHT dht(2, DHT11);
-float dht_h, dht_t;
+
 // Remove 'static' so ServoAction.cpp can see these!
 const uint8_t servoPin = 5;
 Servo myservo;
+
+
+volatile int g_dcMotorSpeed = 0;
+volatile int g_micAdc = 0;
+volatile float g_thermistorTempC = 0.0f;
+volatile float g_dhtTempC = 0.0f;
+volatile float g_dhtHumidity = 0.0f;
+volatile float g_stepperAngleDeg = 0.0f;
+volatile int g_servoPositionDeg = 0;
+volatile bool touched = false;
 
 // Your setup() and RTOS tasks remain here...
 
