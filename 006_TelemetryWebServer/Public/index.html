@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Heater Telemetry Dashboard</title>
+    <style>
+      :root { font-family: Arial, sans-serif; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f4f6f8;
+      }
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: min(780px, 95vw);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+      h1 { margin: 0 0 16px; font-size: 1.4rem; }
+      .row { display: flex; gap: 10px; }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 0.95rem;
+      }
+      button {
+        flex: 1;
+        border: 0;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .primary { background: #1f6feb; color: #fff; }
+      .status { margin-top: 14px; color: #333; font-size: 0.95rem; }
+      .hint { margin-top: 10px; color: #6a6f76; font-size: 0.85rem; }
+      .grid {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+      }
+      .metric {
+        background: #f7f9fc;
+        border: 1px solid #e4e9f2;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .label { color: #5f6b7a; font-size: 0.8rem; }
+      .value { font-size: 1rem; font-weight: 700; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Heater Telemetry Dashboard</h1>
+      <input id="username" placeholder="Username" autocomplete="username" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="row" style="margin-bottom: 10px;">
+        <button class="primary" onclick="login()">Login</button>
+        <button onclick="logout()">Logout</button>
+      </div>
+      <div class="row">
+        <button class="primary" onclick="refreshTelemetry()">Refresh Now</button>
+      </div>
+      <div class="status" id="status">Status: loading...</div>
+      <div class="grid">
+        <div class="metric"><div class="label">DC Motor Speed</div><div class="value" id="dcMotorSpeed">-</div></div>
+        <div class="metric"><div class="label">Mic ADC</div><div class="value" id="micAdc">-</div></div>
+        <div class="metric"><div class="label">Thermistor Temp (C)</div><div class="value" id="thermistorTempC">-</div></div>
+        <div class="metric"><div class="label">DHT Temp (C)</div><div class="value" id="dhtTempC">-</div></div>
+        <div class="metric"><div class="label">DHT Humidity (%)</div><div class="value" id="dhtHumidity">-</div></div>
+        <div class="metric"><div class="label">Stepper Angle (deg)</div><div class="value" id="stepperAngleDeg">-</div></div>
+        <div class="metric"><div class="label">Servo Position (deg)</div><div class="value" id="servoPositionDeg">-</div></div>
+        <div class="metric"><div class="label">Touch Detected</div><div class="value" id="touched">-</div></div>
+      </div>
+      <div class="hint">Reads data from <code>/api/telemetry</code> (authenticated).</div>
+      <div class="hint">Last update: <span id="updatedAt">-</span></div>
+    </div>
+    <script>
+      const statusEl = document.getElementById("status");
+      const tokenKey = "heaterAuthToken";
+      let authToken = localStorage.getItem(tokenKey) || "";
+      function authHeaders() {
+        return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+      }
+      async function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+        if (!username || !password) {
+          statusEl.textContent = "Status: enter username and password first";
+          return;
+        }
+        try {
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Login failed");
+          authToken = data.token;
+          localStorage.setItem(tokenKey, authToken);
+          statusEl.textContent = "Status: login successful";
+          refreshTelemetry();
+        } catch (err) {
+          statusEl.textContent = `Status: error (${err.message})`;
+        }
+      }
+      function logout() {
+        authToken = "";
+        localStorage.removeItem(tokenKey);
+        statusEl.textContent = "Status: logged out";
+      }
+      function setMetric(id, value) {
+        document.getElementById(id).textContent = value;
+      }
+      function renderTelemetry(t) {
+        setMetric("dcMotorSpeed", t.dcMotorSpeed);
+        setMetric("micAdc", t.micAdc);
+        setMetric("thermistorTempC", t.thermistorTempC);
+        setMetric("dhtTempC", t.dhtTempC);
+        setMetric("dhtHumidity", t.dhtHumidity);
+        setMetric("stepperAngleDeg", t.stepperAngleDeg);
+        setMetric("servoPositionDeg", t.servoPositionDeg);
+        setMetric("touched", t.touched ? "Yes" : "No");
+        setMetric("updatedAt", t.updatedAt || "-");
+      }
+      async function refreshTelemetry() {
+        try {
+          const res = await fetch("/api/telemetry", { headers: authHeaders() });
+          if (res.status === 401) {
+            statusEl.textContent = "Status: login required";
+            return;
+          }
+          const data = await res.json();
+          renderTelemetry(data.telemetry || {});
+          statusEl.textContent = "Status: telemetry loaded";
+        } catch {
+          statusEl.textContent = "Status: error (server offline)";
+        }
+      }
+      refreshTelemetry();
+      setInterval(refreshTelemetry, 3000);
+    </script>
+  </body>
+</html>
