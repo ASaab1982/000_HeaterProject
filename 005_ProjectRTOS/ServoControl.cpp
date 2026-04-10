@@ -1,5 +1,6 @@
 #include "ServoControl.h"
 #include <Arduino_FreeRTOS.h>
+#include "ProjectHeater.h"
 
 void doServoSequence() {
   // Generate a random position
@@ -14,4 +15,5 @@ void doServoSequence() {
   // Log the action to the Serial Monitor
   Serial.print(F("Servo moved to: "));
   Serial.println(poslimit);
+  g_servoPositionDeg = poslimit;
 }
