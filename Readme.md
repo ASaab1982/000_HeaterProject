@@ -110,3 +110,51 @@ Reason: control signals are interpreted relative to ground; without common groun
   - Normalize header guards in all module headers
   - Rename local servo module files to avoid naming collision (for example `ServoAction.h/.cpp`)
   - Move credentials to a separate local config file excluded from version control
+
+## Session Log (Apr 10, 2026) - RTOS Telemetry + Web Dashboard
+- Defined shared telemetry globals in `005_ProjectRTOS.ino` for Wi-Fi publishing:
+  - `g_dcMotorSpeed`
+  - `g_micAdc`
+  - `g_thermistorTempC`
+  - `g_dhtTempC`
+  - `g_dhtHumidity`
+  - `g_stepperAngleDeg`
+  - `g_servoPositionDeg`
+  - `touched`
+- Added matching `extern` declarations in `005_ProjectRTOS/ProjectHeater.h` so values are accessible across modules.
+- Updated module files to write telemetry values:
+  - `DCMotor.cpp` updates DC speed
+  - `MicRead.cpp` updates mic ADC
+  - `Sensors.cpp` updates thermistor and DHT values
+  - `ServoControl.cpp` updates servo position
+- Notes kept during session:
+  - `extern` is declaration across files; real definition exists in one file only.
+  - `volatile` is used for shared/async-updated values (tasks/ISR visibility), but it is not a lock.
+  - `const` means read-only after initialization; can be shared with `extern const`.
+- Created standalone authenticated telemetry web app in the main project folder:
+  - Folder: `006_TelemetryWebServer`
+  - Files:
+    - `006_TelemetryWebServer/server.js`
+    - `006_TelemetryWebServer/Public/index.html`
+    - `006_TelemetryWebServer/package.json`
+    - `006_TelemetryWebServer/README.md`
+- Server/API behavior:
+  - `POST /api/login` returns bearer token
+  - `GET /api/telemetry` returns telemetry (auth required)
+  - `POST /api/telemetry` updates telemetry (auth required)
+  - In-memory storage starts with zero/default values until Arduino posts data
+- UI behavior:
+  - Login/logout + periodic refresh
+  - Dashboard boxes display all telemetry fields listed above
+  - `Last update` shows backend timestamp
+
+## Next Session Quick Start
+1. Open `006_TelemetryWebServer`
+2. Run:
+   - `npm install`
+   - `npm start`
+3. Open `http://localhost:3000`
+4. Login with default credentials (`admin` / `admin123`) or env-configured credentials
+5. Connect Arduino HTTP client to:
+   - `POST /api/login` (get token)
+   - `POST /api/telemetry` (send live values)
