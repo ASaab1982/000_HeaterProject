@@ -23,6 +23,7 @@ extern const int rotationSpeed;
 // --- Global Objects & Variables ---
 extern DHT dht;
 extern Servo myservo;
+extern WiFiClient client;
 extern float dht_h, dht_t;
 extern volatile bool touched;
 extern volatile int g_dcMotorSpeed;
@@ -33,6 +34,7 @@ extern volatile float g_dhtHumidity;
 extern volatile float g_stepperAngleDeg;
 extern volatile int g_servoPositionDeg;
 
+
 // --- Function Prototypes ---
 void moveOneStep(bool dir);
 void doStepperSequence();
@@ -42,5 +44,7 @@ void doThermistorRead();
 void doDHTRead();
 void doMicRead();
 void doTouchDisplay();
+void doTaskWebPost();
+
 
 #endif

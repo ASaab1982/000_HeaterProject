@@ -1,5 +1,4 @@
 #include "MicRead.h"
-#include "ProjectHeater.h"
 
 void doMicRead() {
   int sensorValue = analogRead(micPin);

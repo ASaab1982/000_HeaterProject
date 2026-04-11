@@ -3,5 +3,6 @@
 
 #include "ProjectHeater.h"
 
-void doTouchDisplay();
+
+void doTaskWebPost();
 #endif
