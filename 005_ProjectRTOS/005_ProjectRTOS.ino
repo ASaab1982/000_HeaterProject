@@ -21,23 +21,20 @@ Cela évite de recréer la variable à chaque fois qu'une fonction est appelée,
 */
 #define DHTPIN 2
 #define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
 
 // Define all variables here (no 'static') so the 'extern' in .h files can find them
 const int outPorts[4] = {13, 12, 11, 10};
-const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6;
-const uint8_t tempPin = A0;
+const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, micPin = A1, touchPin = 3, servoPin = 5;
 const int rotationSpeed = 256;
-const uint8_t micPin = A1;
-const uint8_t touchPin = 3;
 const bool dir =1; 
 const int spd =256; 
-DHT dht(2, DHT11);
-
-// Remove 'static' so ServoAction.cpp can see these!
-const uint8_t servoPin = 5;
 Servo myservo;
+WiFiClient client;
 
 
+
+// delcaration of variable to be exanched with the server
 volatile int g_dcMotorSpeed = 0;
 volatile int g_micAdc = 0;
 volatile float g_thermistorTempC = 0.0f;
@@ -83,7 +80,7 @@ static TaskHandle_t hMic       = nullptr;
 static TaskHandle_t hTouch     = nullptr;
 static TaskHandle_t hMonitor   = nullptr;
 static TaskHandle_t hMaster    = nullptr;
-
+static TaskHandle_t hWebPost    = nullptr;
 
 // -------------------- Touch ISR --------------------
 void handleTouchInterrupt() {
@@ -101,7 +98,9 @@ static void printRtosStats() {
   if (hMic)     { Serial.print(F("Mic       : ")); Serial.println(uxTaskGetStackHighWaterMark(hMic)); }
   if (hTouch)   { Serial.print(F("Touch     : ")); Serial.println(uxTaskGetStackHighWaterMark(hTouch)); }
   if (hMonitor) { Serial.print(F("Monitor   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMonitor)); }
-  if (hMaster) { Serial.print(F("Master   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMaster)); }
+  if (hMaster)  { Serial.print(F("Master   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMaster)); }
+  if (hWebPost) { Serial.print(F("WebPost  : ")); Serial.println(uxTaskGetStackHighWaterMark(hWebPost)); }
+
 
   Serial.println("---- RTOS Stats ----");
   Serial.print(F("FreeHeap=")); Serial.println(xPortGetFreeHeapSize());
@@ -165,6 +164,7 @@ static void TaskMasterTimer(void* pv) {
       case 3: xTaskNotifyGive(hTherm);   break;
       case 4: xTaskNotifyGive(hDHT);     break;
       case 5: xTaskNotifyGive(hMic);     break;
+      case 6: xTaskNotifyGive(hWebPost); break; // Trigger web upload on second 6
     }
 
     // 2. Increment time
@@ -237,6 +237,14 @@ static void TaskTouch(void* pv) {
   }
 } 
 
+static void TaskWebPost(void *pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    doTaskWebPost();
+  }
+}
+
 static void TaskMonitor(void *pv) {
   (void)pv;
   for (;;) {
@@ -244,7 +252,6 @@ static void TaskMonitor(void *pv) {
     vTaskDelay(pdMS_TO_TICKS(5000)); // every 5s
   }
 }
-
 
 
 // -------------------- Arduino setup/loop --------------------
@@ -364,6 +371,9 @@ BaseType_t ok;
 
   ok = xTaskCreate(TaskMasterTimer, "Master", 100, nullptr, 3, &hMaster);
   if (ok != pdPASS) { Serial.println(F("Task Master Time create failed")); for(;;){} }
+
+   ok =xTaskCreate(TaskWebPost, "TaskWeb", 300, nullptr, 1, &hWebPost);
+  if (ok != pdPASS) { Serial.println(F("Task web post create failed")); for(;;){} }
 
   Serial.print("Free heap bytes: ");
   Serial.println(xPortGetFreeHeapSize());

@@ -1,9 +1,8 @@
 #ifndef SENSORS_H
 #define SENSORS_H
-#include <Arduino.h>
-#include <DHT.h>
 
-extern const uint8_t tempPin;
+#include "ProjectHeater.h"
+
 
 void doThermistorRead();
 void doDHTRead();

@@ -1,6 +1,5 @@
+
 #include "Sensors.h"
-#include <Arduino_FreeRTOS.h>
-#include "ProjectHeater.h"
 
 void doThermistorRead() {
     int16_t adcVal = analogRead(tempPin);
@@ -20,8 +19,8 @@ void doDHTRead() {
 
     if (isnan(h) || isnan(t)) {
         Serial.println(F("Error: DHT sensor failed!"));
-        g_dhtHumidity = 0; // Update global variables
-        g_dhtTempC = 0;
+        g_dhtHumidity = 70; // Update global variables
+        g_dhtTempC = 100;
         Serial.print(F("Hum: ")); Serial.print(g_dhtHumidity);
         Serial.print(F("%, Temp: ")); Serial.print(g_dhtTempC);
         Serial.println(F("C"));

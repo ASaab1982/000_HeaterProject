@@ -1,6 +1,5 @@
+
 #include "Stepper.h"
-#include <Arduino_FreeRTOS.h>
-#include "ProjectHeater.h"
 
 void moveOneStep(bool dir) {
   static byte out = 0x01;
@@ -17,7 +16,8 @@ void moveOneStep(bool dir) {
 }
 
 void doStepperSequence() {
-  for (int i = 0; i < (2 * 64); i++) {
+  g_stepperAngleDeg = random(0, 10);
+  for (int i = 0; i < (g_stepperAngleDeg * 64); i++) {
     moveOneStep(false);
     vTaskDelay(pdMS_TO_TICKS(20));
   }

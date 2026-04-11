@@ -1,6 +1,4 @@
 #include "ServoControl.h"
-#include <Arduino_FreeRTOS.h>
-#include "ProjectHeater.h"
 
 void doServoSequence() {
   // Generate a random position
