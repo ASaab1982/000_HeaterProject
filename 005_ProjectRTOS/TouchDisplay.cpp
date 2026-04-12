@@ -2,5 +2,5 @@
 
 
 void doTouchDisplay() {
-    Serial.println(F("Touch Detected!"));
+    D_PRINTLN(F("Touch Detected!"));
 }

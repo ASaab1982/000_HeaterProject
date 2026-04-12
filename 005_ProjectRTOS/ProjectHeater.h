@@ -13,6 +13,7 @@
 #include "MicRead.h"
 #include "TouchDisplay.h"
 #include "Secrets.h"
+#include "DebugMacros.h"
 
 // --- Global Pins ---
 extern const int outPorts[4];

@@ -3,6 +3,6 @@
 void doMicRead() {
   int sensorValue = analogRead(micPin);
   g_micAdc = sensorValue;
-  Serial.print(F("Microphone: "));
-  Serial.println(sensorValue);
+  D_PRINT(F("Microphone: "));
+  D_PRINTLN(sensorValue);
 }

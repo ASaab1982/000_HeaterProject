@@ -4,9 +4,9 @@
 void doThermistorRead() {
     int16_t adcVal = analogRead(tempPin);
     int16_t tempC10 = map(adcVal, 350, 650, 450, 150); // wer are not using the log funcion to reduce RAM size
-    Serial.print(F("Temp: "));
-    Serial.print(tempC10 / 10); Serial.print(F("."));
-    Serial.print(tempC10 % 10); Serial.println(F(" C"));
+    D_PRINT(F("Temp: "));
+    D_PRINT(tempC10 / 10); D_PRINT(F("."));
+    D_PRINT(tempC10 % 10); D_PRINTLN(F(" C"));
     g_thermistorTempC = tempC10 / 10.0f;
 }
 
@@ -18,19 +18,19 @@ void doDHTRead() {
     float t = dht.readTemperature();
 
     if (isnan(h) || isnan(t)) {
-        Serial.println(F("Error: DHT sensor failed!"));
+        D_PRINTLN(F("Error: DHT sensor failed!"));
         g_dhtHumidity = 70; // Update global variables
         g_dhtTempC = 100;
-        Serial.print(F("Hum: ")); Serial.print(g_dhtHumidity);
-        Serial.print(F("%, Temp: ")); Serial.print(g_dhtTempC);
-        Serial.println(F("C"));
+        D_PRINT(F("Hum: ")); D_PRINT(g_dhtHumidity);
+        D_PRINT(F("%, Temp: ")); D_PRINT(g_dhtTempC);
+        D_PRINTLN(F("C"));
 
     } else {
         g_dhtHumidity = h; // Update global variables
         g_dhtTempC = t;
-        Serial.print(F("Hum: ")); Serial.print(g_dhtHumidity);
-        Serial.print(F("%, Temp: ")); Serial.print(g_dhtTempC);
-        Serial.println(F("C"));
+        D_PRINT(F("Hum: ")); D_PRINT(g_dhtHumidity);
+        D_PRINT(F("%, Temp: ")); D_PRINT(g_dhtTempC);
+        D_PRINTLN(F("C"));
     }
     // The task will now finish in milliseconds and wait 10s for the next signal
 }

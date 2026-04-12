@@ -89,22 +89,20 @@ void handleTouchInterrupt() {
 
 
 static void printRtosStats() {
-    Serial.println("---- Task Stack HWM (words) ----");
-  if (hStepper) { Serial.print(F("Stepper   : ")); Serial.println(uxTaskGetStackHighWaterMark(hStepper)); }
-  if (hDC)      { Serial.print(F("DC        : ")); Serial.println(uxTaskGetStackHighWaterMark(hDC)); }
-  if (hServo)   { Serial.print(F("Servo     : ")); Serial.println(uxTaskGetStackHighWaterMark(hServo)); }
-  if (hTherm)   { Serial.print(F("Thermistor: ")); Serial.println(uxTaskGetStackHighWaterMark(hTherm)); }
-  if (hDHT)     { Serial.print(F("DHT       : ")); Serial.println(uxTaskGetStackHighWaterMark(hDHT)); }
-  if (hMic)     { Serial.print(F("Mic       : ")); Serial.println(uxTaskGetStackHighWaterMark(hMic)); }
-  if (hTouch)   { Serial.print(F("Touch     : ")); Serial.println(uxTaskGetStackHighWaterMark(hTouch)); }
-  if (hMonitor) { Serial.print(F("Monitor   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMonitor)); }
-  if (hMaster)  { Serial.print(F("Master   : ")); Serial.println(uxTaskGetStackHighWaterMark(hMaster)); }
-  if (hWebPost) { Serial.print(F("WebPost  : ")); Serial.println(uxTaskGetStackHighWaterMark(hWebPost)); }
+    D_PRINTLN("---- Task Stack HWM (words) ----");
+  if (hStepper) { D_PRINT(F("Stepper   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hStepper)); }
+  if (hDC)      { D_PRINT(F("DC        : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDC)); }
+  if (hServo)   { D_PRINT(F("Servo     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hServo)); }
+  if (hTherm)   { D_PRINT(F("Thermistor: ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTherm)); }
+  if (hDHT)     { D_PRINT(F("DHT       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
+  if (hMic)     { D_PRINT(F("Mic       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMic)); }
+  if (hTouch)   { D_PRINT(F("Touch     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTouch)); }
+  if (hMonitor) { D_PRINT(F("Monitor   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMonitor)); }
+  if (hMaster) { D_PRINT(F("Master   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMaster)); }
 
-
-  Serial.println("---- RTOS Stats ----");
-  Serial.print(F("FreeHeap=")); Serial.println(xPortGetFreeHeapSize());
-  Serial.print(F("MinEver =" )); Serial.println(xPortGetMinimumEverFreeHeapSize());
+  D_PRINTLN("---- RTOS Stats ----");
+  D_PRINT(F("FreeHeap=")); D_PRINTLN(xPortGetFreeHeapSize());
+  D_PRINT(F("MinEver =" )); D_PRINTLN(xPortGetMinimumEverFreeHeapSize());
 }
 
 
@@ -136,7 +134,7 @@ doStepperSequence();
 Une fois que la tâche a reçu sa notification (le réveil), elle exécute enfin le mouvement du moteur.
 
 6. Le feedback
-Serial.println(" Stepper moved");
+D_PRINTLN(" Stepper moved");
 Affiche un message dans le moniteur série pour te confirmer que la séquence est terminée.
 
 7. Le passage de relais (Le chaînage)
@@ -171,7 +169,7 @@ static void TaskMasterTimer(void* pv) {
     currentSecond++;
     if (currentSecond >= 10) {
       currentSecond = 0; // Reset every 10 seconds
-      Serial.println(F("--- New 10s Cycle Started ---"));
+      D_PRINTLN(F("--- New 10s Cycle Started ---"));
     }
 
     // 3. Wait exactly 1 second
@@ -185,7 +183,7 @@ static void TaskStepper(void* pv) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     doStepperSequence();
-    Serial.println(F("Stepper moved"));
+    D_PRINTLN(F("Stepper moved"));
   }
 }
 
@@ -194,7 +192,7 @@ static void TaskDC(void* pv) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     driveDCMotor(dir, spd);
-    Serial.println(F("DC moved"));
+    D_PRINTLN(F("DC moved"));
   }
 }
 
@@ -277,25 +275,25 @@ void setup() {
   myservo.attach(servoPin);
 
   // WiFi (kept from your setup)
-  Serial.print(F("Connecting to "));
-  Serial.println(WIFI_SSID);
+  D_PRINT(F("Connecting to "));
+  D_PRINTLN(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(F("."));
+    D_PRINT(F("."));
   }
 
-  Serial.println(F("\nWiFi Connected! Waiting for DHCP address..."));
+  D_PRINTLN(F("\nWiFi Connected! Waiting for DHCP address..."));
   while (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
     delay(10);
-    Serial.print(F("."));
+    D_PRINT(F("."));
   }
 
-  Serial.println(F(""));
-  Serial.println(F("WiFi connected."));
-  Serial.println(F("IP address: "));
-  Serial.println(WiFi.localIP());
+  D_PRINTLN(F(""));
+  D_PRINTLN(F("WiFi connected."));
+  D_PRINTLN(F("IP address: "));
+  D_PRINTLN(WiFi.localIP());
   server.begin();
 
   randomSeed(millis());
@@ -341,42 +339,42 @@ BaseType_t ok;
 
   // Create tasks
   ok = xTaskCreate(TaskStepper,   "TaskStepper",   90, nullptr, 2, &hStepper);
-  if (ok != pdPASS) { Serial.println(F("TaskStepper create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskStepper create failed")); for(;;){} }
 
   ok = xTaskCreate(TaskDC,        "TaskDC",        90, nullptr, 2, &hDC);
-  if (ok != pdPASS) { Serial.println(F("TaskDC create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskDC create failed")); for(;;){} }
 
 
   ok =  xTaskCreate(TaskServo,     "TaskServo",     90, nullptr, 2, &hServo);
-  if (ok != pdPASS) { Serial.println(F("TaskServo create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskServo create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 2, &hTherm);
-  if (ok != pdPASS) { Serial.println(F("TaskTherm create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskTherm create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskDHT,       "TaskDHT",       180, nullptr, 1, &hDHT);
-  if (ok != pdPASS) { Serial.println(F("TaskDHT create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskMic,       "TaskMic",       70, nullptr, 1, &hMic);
-  if (ok != pdPASS) { Serial.println(F("TaskMic create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskMic create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskTouch,     "TaskTouch",    50, nullptr, 2, &hTouch);
-  if (ok != pdPASS) { Serial.println(F("TaskTouch create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("TaskTouch create failed")); for(;;){} }
 
   ok =   xTaskCreate(TaskMonitor, "Monitor", 70, nullptr, 1, &hMonitor);
-  if (ok != pdPASS) { Serial.println(F("Monitor create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
 
   ok = xTaskCreate(TaskMasterTimer, "Master", 60, nullptr, 3, &hMaster);
-  if (ok != pdPASS) { Serial.println(F("Task Master Time create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
 
    ok =xTaskCreate(TaskWebPost, "TaskWeb", 250, nullptr, 1, &hWebPost);
-  if (ok != pdPASS) { Serial.println(F("Task web post create failed")); for(;;){} }
+  if (ok != pdPASS) { D_PRINTLN(F("Task web post create failed")); for(;;){} }
 
-  Serial.print("Free heap bytes: ");
-  Serial.println(xPortGetFreeHeapSize());
+  D_PRINT(F("Free heap bytes: "));
+  D_PRINTLN(xPortGetFreeHeapSize());
 
   vTaskStartScheduler();
 }
