@@ -1,8 +1,10 @@
+require('dotenv').config(); // <--- CRITICAL: This must be line 1
 const express = require("express");
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "Public")));
@@ -32,8 +34,12 @@ const telemetry = {
 };
 
 const sessions = new Set();
-const WEB_USERNAME = process.env.WEB_USERNAME || "admin";
-const WEB_PASSWORD = process.env.WEB_PASSWORD || "admin123";
+const WEB_USERNAME = process.env.WEB_USERNAME ;
+const WEB_PASSWORD = process.env.WEB_PASSWORD ;
+const ARDUINO_STATIC_TOKEN = process.env.ARDUINO_TOKEN
+sessions.add(ARDUINO_STATIC_TOKEN); // Pre-authorize the Arduino
+
+console.log("🔐 [SYSTEM]: Static Arduino Token loaded into session.");
 
 function requireAuth(req, res, next) {
   const authHeader = req.header("Authorization") || "";

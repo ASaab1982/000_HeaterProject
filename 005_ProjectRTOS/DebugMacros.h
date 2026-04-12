@@ -3,7 +3,7 @@
 
 // SET TO 0 TO SILENCE SYSTEM & GAIN RAM
 // SET TO 1 TO SEE LOGS
-#define DEBUG_LEVEL 0
+#define DEBUG_LEVEL 1
 
 #if DEBUG_LEVEL
   #define D_PRINT(x)    Serial.print(x)
