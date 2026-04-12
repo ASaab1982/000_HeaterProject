@@ -340,39 +340,39 @@ void setup() {
 BaseType_t ok;
 
   // Create tasks
-  ok = xTaskCreate(TaskStepper,   "TaskStepper",   60, nullptr, 2, &hStepper);
+  ok = xTaskCreate(TaskStepper,   "TaskStepper",   90, nullptr, 2, &hStepper);
   if (ok != pdPASS) { Serial.println(F("TaskStepper create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskDC,        "TaskDC",        80, nullptr, 2, &hDC);
+  ok = xTaskCreate(TaskDC,        "TaskDC",        90, nullptr, 2, &hDC);
   if (ok != pdPASS) { Serial.println(F("TaskDC create failed")); for(;;){} }
 
 
-  ok =  xTaskCreate(TaskServo,     "TaskServo",     80, nullptr, 2, &hServo);
+  ok =  xTaskCreate(TaskServo,     "TaskServo",     90, nullptr, 2, &hServo);
   if (ok != pdPASS) { Serial.println(F("TaskServo create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskThermistor,"TaskTherm",    100, nullptr, 2, &hTherm);
+  ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 2, &hTherm);
   if (ok != pdPASS) { Serial.println(F("TaskTherm create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskDHT,       "TaskDHT",       200, nullptr, 1, &hDHT);
+  ok = xTaskCreate(TaskDHT,       "TaskDHT",       180, nullptr, 1, &hDHT);
   if (ok != pdPASS) { Serial.println(F("TaskDHT create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskMic,       "TaskMic",       80, nullptr, 1, &hMic);
+  ok = xTaskCreate(TaskMic,       "TaskMic",       70, nullptr, 1, &hMic);
   if (ok != pdPASS) { Serial.println(F("TaskMic create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskTouch,     "TaskTouch",    60, nullptr, 2, &hTouch);
+  ok = xTaskCreate(TaskTouch,     "TaskTouch",    50, nullptr, 2, &hTouch);
   if (ok != pdPASS) { Serial.println(F("TaskTouch create failed")); for(;;){} }
 
-  ok =   xTaskCreate(TaskMonitor, "Monitor", 60, nullptr, 1, &hMonitor);
+  ok =   xTaskCreate(TaskMonitor, "Monitor", 70, nullptr, 1, &hMonitor);
   if (ok != pdPASS) { Serial.println(F("Monitor create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskMasterTimer, "Master", 100, nullptr, 3, &hMaster);
+  ok = xTaskCreate(TaskMasterTimer, "Master", 60, nullptr, 3, &hMaster);
   if (ok != pdPASS) { Serial.println(F("Task Master Time create failed")); for(;;){} }
 
-   ok =xTaskCreate(TaskWebPost, "TaskWeb", 300, nullptr, 1, &hWebPost);
+   ok =xTaskCreate(TaskWebPost, "TaskWeb", 250, nullptr, 1, &hWebPost);
   if (ok != pdPASS) { Serial.println(F("Task web post create failed")); for(;;){} }
 
   Serial.print("Free heap bytes: ");
