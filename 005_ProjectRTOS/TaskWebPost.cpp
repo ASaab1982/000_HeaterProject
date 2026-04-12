@@ -51,8 +51,8 @@ void doTaskWebPost() {
         }
 
         client.stop();
-        Serial.println(F("[+] Telemetry streamed successfully."));
+        D_PRINTLN(F("[+] Telemetry streamed successfully."));
     } else {
-        Serial.println(F("[!] Server connection failed."));
+        D_PRINTLN(F("[!] Server connection failed."));
     }
 }
