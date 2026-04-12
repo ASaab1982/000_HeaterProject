@@ -26,6 +26,8 @@ const telemetry = {
   stepperAngleDeg: 0,
   servoPositionDeg: 0,
   touched: false,
+  freeHeap: 0,     // <--- New
+  minHeap: 0,      // <--- New
   updatedAt: new Date().toISOString()
 };
 
@@ -74,6 +76,8 @@ app.post("/api/telemetry", requireAuth, (req, res) => {
     stepperAngleDeg: Number(body.stepperAngleDeg ?? telemetry.stepperAngleDeg),
     servoPositionDeg: Number(body.servoPositionDeg ?? telemetry.servoPositionDeg),
     touched: body.touched !== undefined ? Boolean(body.touched) : telemetry.touched,
+    freeHeap: Number(body.freeHeap ?? telemetry.freeHeap), // <--- Added
+    minHeap: Number(body.minHeap ?? telemetry.minHeap),   // <--- Added
     updatedAt: new Date().toISOString()
   };
 
@@ -84,7 +88,9 @@ app.post("/api/telemetry", requireAuth, (req, res) => {
     "dhtTempC",
     "dhtHumidity",
     "stepperAngleDeg",
-    "servoPositionDeg"
+    "servoPositionDeg",
+    "freeHeap", 
+    "minHeap"   
   ];
 
   for (const key of numericKeys) {
