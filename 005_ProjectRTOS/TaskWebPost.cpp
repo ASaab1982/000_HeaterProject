@@ -12,6 +12,9 @@ int calculateJsonLength() {
     len += String("\"stepperAngleDeg\":").length() + String(g_stepperAngleDeg).length() + 1;
     len += String("\"servoPositionDeg\":").length() + String(g_servoPositionDeg).length() + 1;
     len += String("\"touched\":").length() + (touched ? 4 : 5); // true vs false
+    // Inside calculateJsonLength()
+    len += String("\"freeHeap\":").length() + String(xPortGetFreeHeapSize()).length() + 1;
+    len += String("\"minHeap\":").length() + String(xPortGetMinimumEverFreeHeapSize()).length() + 1;
     len += 1; // }
     return len;
 }
@@ -38,6 +41,8 @@ void doTaskWebPost() {
         client.print(F("\"stepperAngleDeg\":"));   client.print(g_stepperAngleDeg);   client.print(F(","));
         client.print(F("\"servoPositionDeg\":"));  client.print(g_servoPositionDeg);  client.print(F(","));
         client.print(F("\"touched\":"));           client.print(touched ? F("true") : F("false"));
+        client.print(F(",\"freeHeap\":"));         client.print(xPortGetFreeHeapSize());
+        client.print(F(",\"minHeap\":"));          client.print(xPortGetMinimumEverFreeHeapSize());
         client.print(F("}"));
 
         // 3. Efficient Response Check
