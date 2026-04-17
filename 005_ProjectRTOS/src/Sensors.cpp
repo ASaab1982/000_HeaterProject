@@ -8,6 +8,8 @@ void doThermistorRead() {
     D_PRINT(tempC10 / 10); D_PRINT(F("."));
     D_PRINT(tempC10 % 10); D_PRINTLN(F(" C"));
     g_thermistorTempC = tempC10 / 10.0f;
+      systemHealth |= (1 << 2); // Health bit for mic read is OK
+
 }
 
 void doDHTRead() {
@@ -18,7 +20,7 @@ void doDHTRead() {
     float t = dht.readTemperature();
 
     if (isnan(h) || isnan(t)) {
-        D_PRINTLN(F("Error: DHT sensor failed!"));
+        D_PRINT(F("Error: DHT sensor failed!"));
         g_dhtHumidity = 70; // Update global variables
         g_dhtTempC = 100;
         D_PRINT(F("Hum: ")); D_PRINT(g_dhtHumidity);
@@ -33,4 +35,6 @@ void doDHTRead() {
         D_PRINTLN(F("C"));
     }
     // The task will now finish in milliseconds and wait 10s for the next signal
+    systemHealth |= (1 << 3); // Health bit for mic read is OK
+
 }

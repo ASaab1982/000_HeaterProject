@@ -29,12 +29,15 @@ const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, micPin = A1, 
 const int rotationSpeed = 256;
 const bool dir =1; 
 const int spd =256; 
-Servo myservo;
-WiFiClient client;
+const byte HEALTH_REQUIRED = 0x7F; // Binary 00000011 (Both tasks must be OK)
+const uint32_t WDT_TIMEOUT = 15000; // 3 seconds
+
 
 
 
 // delcaration of variable to be exanched with the server
+Servo myservo;
+WiFiClient client;
 volatile int g_dcMotorSpeed = 0;
 volatile int g_micAdc = 0;
 volatile float g_thermistorTempC = 0.0f;
@@ -43,13 +46,14 @@ volatile float g_dhtHumidity = 0.0f;
 volatile float g_stepperAngleDeg = 0.0f;
 volatile int g_servoPositionDeg = 0;
 volatile bool touched = false;
+volatile byte systemHealth = 0x00;
 
 // Your setup() and RTOS tasks remain here...
 
 // -------------------- Globals --------------------
 
 
-static WiFiServer server(80);
+
 /*
 **********************************
 1. TaskHandle_t (Le Type)
@@ -80,7 +84,9 @@ static TaskHandle_t hMic       = nullptr;
 static TaskHandle_t hTouch     = nullptr;
 static TaskHandle_t hMonitor   = nullptr;
 static TaskHandle_t hMaster    = nullptr;
-static TaskHandle_t hWebPost    = nullptr;
+static TaskHandle_t hWebPost   = nullptr;
+static TaskHandle_t hWatchdog  = nullptr;
+
 
 // -------------------- Touch ISR --------------------
 void handleTouchInterrupt() {
@@ -88,22 +94,6 @@ void handleTouchInterrupt() {
 }
 
 
-static void printRtosStats() {
-    D_PRINTLN("---- Task Stack HWM (words) ----");
-  if (hStepper) { D_PRINT(F("Stepper   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hStepper)); }
-  if (hDC)      { D_PRINT(F("DC        : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDC)); }
-  if (hServo)   { D_PRINT(F("Servo     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hServo)); }
-  if (hTherm)   { D_PRINT(F("Thermistor: ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTherm)); }
-  if (hDHT)     { D_PRINT(F("DHT       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
-  if (hMic)     { D_PRINT(F("Mic       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMic)); }
-  if (hTouch)   { D_PRINT(F("Touch     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTouch)); }
-  if (hMonitor) { D_PRINT(F("Monitor   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMonitor)); }
-  if (hMaster) { D_PRINT(F("Master   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMaster)); }
-
-  D_PRINTLN("---- RTOS Stats ----");
-  D_PRINT(F("FreeHeap=")); D_PRINTLN(xPortGetFreeHeapSize());
-  D_PRINT(F("MinEver =" )); D_PRINTLN(xPortGetMinimumEverFreeHeapSize());
-}
 
 
 // -------------------- Tasks (one per function) --------------------
@@ -149,40 +139,98 @@ qui bloquerait tout ton programme.
 
 */
 
+
 static void TaskMasterTimer(void* pv) {
   (void)pv;
-  int currentSecond = 0;
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  // We want a 1-second gap between each task notification
+  const TickType_t xOneSecond = pdMS_TO_TICKS(1000); 
 
   for (;;) {
-    // 1. Check which task to trigger based on the second
-    switch (currentSecond) {
-      case 0: xTaskNotifyGive(hStepper); break;
-      case 1: xTaskNotifyGive(hDC);      break;
-      case 2: xTaskNotifyGive(hServo);   break;
-      case 3: xTaskNotifyGive(hTherm);   break;
-      case 4: xTaskNotifyGive(hDHT);     break;
-      case 5: xTaskNotifyGive(hMic);     break;
-      case 6: xTaskNotifyGive(hWebPost); break; // Trigger web upload on second 6
-    }
+    // --- Second 0 ---
+    xTaskNotifyGive(hStepper);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
 
-    // 2. Increment time
-    currentSecond++;
-    if (currentSecond >= 10) {
-      currentSecond = 0; // Reset every 10 seconds
-      D_PRINTLN(F("--- New 10s Cycle Started ---"));
-    }
+    // --- Second 1 ---
+    xTaskNotifyGive(hDC);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
 
-    // 3. Wait exactly 1 second
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // --- Second 2 ---
+    xTaskNotifyGive(hServo);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+
+    // --- Second 3 ---
+    xTaskNotifyGive(hTherm);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+
+    // --- Second 4 ---
+    xTaskNotifyGive(hDHT);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+
+    // --- Second 5-9: Buffer / Web / Health ---
+    xTaskNotifyGive(hWebPost); 
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+    
+    xTaskNotifyGive(hMonitor);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+
+    // Add empty delays if you want to reach a full 10 seconds
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond); 
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
+
+    D_PRINTLN(F("--- 10s Cycle Complete ---"));
   }
 }
 
+static void printRtosStats() {
+    D_PRINTLN("---- Task Stack HWM (words) ----");
+  if (hStepper) { D_PRINT(F("Stepper   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hStepper)); }
+  if (hDC)      { D_PRINT(F("DC        : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDC)); }
+  if (hServo)   { D_PRINT(F("Servo     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hServo)); }
+  if (hTherm)   { D_PRINT(F("Thermistor: ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTherm)); }
+  if (hDHT)     { D_PRINT(F("DHT       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
+  if (hMic)     { D_PRINT(F("Mic       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMic)); }
+  if (hTouch)   { D_PRINT(F("Touch     : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTouch)); }
+  if (hMonitor) { D_PRINT(F("Monitor   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMonitor)); }
+  if (hMaster)  { D_PRINT(F("Master   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hMaster)); }
+  if (hWatchdog)  { D_PRINT(F("WatchDog   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWatchdog)); }
+  if (hWebPost)  { D_PRINT(F("WebPost   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWebPost)); }
+  
+
+  D_PRINTLN("---- RTOS Stats ----");
+  D_PRINT(F("FreeHeap=")); D_PRINTLN(xPortGetFreeHeapSize());
+  D_PRINT(F("MinEver =" )); D_PRINTLN(xPortGetMinimumEverFreeHeapSize());
+}
+
+static void watchdogMonitorTask(void *pv) {
+    for (;;) {
+        // Logic: Only refresh if the mask matches our requirements
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        D_PRINT(F("System Health   : ")); 
+        D_PRINTLN(systemHealth);
+        if (systemHealth == HEALTH_REQUIRED) {
+            WDT.refresh();            // Physical Hardware Kick
+            systemHealth = 0x00;      // Reset for next cycle
+            
+            #if DEBUG
+                Serial.println(F("WDT: All tasks reported. System Healthy."));
+            #endif
+        } else {
+            #if DEBUG
+                Serial.print(F("WDT Warning: Missing task report. Health Mask: "));
+                Serial.println(systemHealth, BIN);
+            #endif
+        }
+    }
+}
 
 static void TaskStepper(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     doStepperSequence();
+    D_PRINT(millis()); // Show exactly when this happened
     D_PRINTLN(F("Stepper moved"));
   }
 }
@@ -192,6 +240,7 @@ static void TaskDC(void* pv) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     driveDCMotor(dir, spd);
+    D_PRINT(millis()); // Show exactly when this happened
     D_PRINTLN(F("DC moved"));
   }
 }
@@ -201,6 +250,8 @@ static void TaskServo(void* pv) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     doServoSequence();
+    D_PRINT(millis()); // Show exactly when this happened
+    D_PRINTLN(F("Servo moved"));
   }
 }
 
@@ -246,15 +297,27 @@ static void TaskWebPost(void *pv) {
 static void TaskMonitor(void *pv) {
   (void)pv;
   for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     printRtosStats();
-    vTaskDelay(pdMS_TO_TICKS(5000)); // every 5s
   }
 }
 
 
 // -------------------- Arduino setup/loop --------------------
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
+  /*
+    if (!WDT.begin(5592)) {
+    D_PRINTLN(F("WDT.begin a échoué. Tentative de refresh forcé..."));
+    WDT.refresh(); 
+    D_PRINTLN(F("Si vous lisez ceci, le code continue malgré l'erreur."));
+      }
+    else {
+    // SCÉNARIO B : SUCCÈS
+    D_PRINTLN(F("[OK] Watchdog Hardware initialized (15s timeout)."));
+  }
+  */
+  
 
   dht.begin();
 
@@ -294,7 +357,7 @@ void setup() {
   D_PRINTLN(F("WiFi connected."));
   D_PRINTLN(F("IP address: "));
   D_PRINTLN(WiFi.localIP());
-  server.begin();
+  // server.begin();
 
   randomSeed(millis());
   /*
@@ -338,18 +401,18 @@ void setup() {
 BaseType_t ok;
 
   // Create tasks
-  ok = xTaskCreate(TaskStepper,   "TaskStepper",   90, nullptr, 2, &hStepper);
+  ok = xTaskCreate(TaskStepper,   "TaskStepper",   90, nullptr, 1, &hStepper);
   if (ok != pdPASS) { D_PRINTLN(F("TaskStepper create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskDC,        "TaskDC",        90, nullptr, 2, &hDC);
+  ok = xTaskCreate(TaskDC,        "TaskDC",        90, nullptr, 1, &hDC);
   if (ok != pdPASS) { D_PRINTLN(F("TaskDC create failed")); for(;;){} }
 
 
-  ok =  xTaskCreate(TaskServo,     "TaskServo",     90, nullptr, 2, &hServo);
+  ok =  xTaskCreate(TaskServo,     "TaskServo",     90, nullptr, 1, &hServo);
   if (ok != pdPASS) { D_PRINTLN(F("TaskServo create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 2, &hTherm);
+  ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 1, &hTherm);
   if (ok != pdPASS) { D_PRINTLN(F("TaskTherm create failed")); for(;;){} }
 
 
@@ -361,7 +424,7 @@ BaseType_t ok;
   if (ok != pdPASS) { D_PRINTLN(F("TaskMic create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskTouch,     "TaskTouch",    50, nullptr, 2, &hTouch);
+  ok = xTaskCreate(TaskTouch,     "TaskTouch",    50, nullptr, 1, &hTouch);
   if (ok != pdPASS) { D_PRINTLN(F("TaskTouch create failed")); for(;;){} }
 
   ok =   xTaskCreate(TaskMonitor, "Monitor", 70, nullptr, 1, &hMonitor);
@@ -370,8 +433,11 @@ BaseType_t ok;
   ok = xTaskCreate(TaskMasterTimer, "Master", 60, nullptr, 3, &hMaster);
   if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
 
-   ok =xTaskCreate(TaskWebPost, "TaskWeb", 250, nullptr, 1, &hWebPost);
+   ok =xTaskCreate(TaskWebPost, "TaskWeb", 300, nullptr, 1, &hWebPost);
   if (ok != pdPASS) { D_PRINTLN(F("Task web post create failed")); for(;;){} }
+
+  ok = xTaskCreate(watchdogMonitorTask, "WDT_Mon", 50, nullptr, 1, &hWatchdog);
+  if (ok != pdPASS) { D_PRINTLN(F("Watchdog task create failed"));  for(;;){} }
 
   D_PRINT(F("Free heap bytes: "));
   D_PRINTLN(xPortGetFreeHeapSize());
