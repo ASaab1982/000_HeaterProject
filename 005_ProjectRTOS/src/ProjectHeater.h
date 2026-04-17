@@ -6,6 +6,7 @@
 #include <WiFiS3.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
+#include <WDT.h>
 #include "Stepper.h"
 #include "Sensors.h"
 #include "DCMotor.h"
@@ -34,6 +35,7 @@ extern volatile float g_dhtTempC;
 extern volatile float g_dhtHumidity;
 extern volatile float g_stepperAngleDeg;
 extern volatile int g_servoPositionDeg;
+extern volatile byte systemHealth;
 
 
 // --- Function Prototypes ---

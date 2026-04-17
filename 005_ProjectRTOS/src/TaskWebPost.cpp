@@ -60,4 +60,6 @@ void doTaskWebPost() {
     } else {
         D_PRINTLN(F("[!] Server connection failed."));
     }
+    systemHealth |= (1 << 6); // Health bit for mic read is OK
+
 }

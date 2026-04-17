@@ -11,7 +11,7 @@ void doServoSequence() {
   myservo.write(poslimit);
   
   // Log the action to the Serial Monitor
-  D_PRINT(F("Servo moved to: "));
-  D_PRINTLN(poslimit);
   g_servoPositionDeg = poslimit;
+  systemHealth |= (1 << 5); // Health bit for mic read is OK
+
 }

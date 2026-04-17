@@ -16,9 +16,10 @@ void moveOneStep(bool dir) {
 }
 
 void doStepperSequence() {
-  g_stepperAngleDeg = random(0, 10);
+  g_stepperAngleDeg = random(1, 2);
   for (int i = 0; i < (g_stepperAngleDeg * 64); i++) {
     moveOneStep(false);
     vTaskDelay(pdMS_TO_TICKS(20));
   }
+  systemHealth |= (1 << 4); // Health bit for mic read is OK
 }
