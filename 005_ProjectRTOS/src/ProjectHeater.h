@@ -6,6 +6,7 @@
 #include <WiFiS3.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
+#include <WDT.h>
 #include "Stepper.h"
 #include "Sensors.h"
 #include "DCMotor.h"
@@ -13,6 +14,7 @@
 #include "MicRead.h"
 #include "TouchDisplay.h"
 #include "Secrets.h"
+#include "DebugMacros.h"
 
 // --- Global Pins ---
 extern const int outPorts[4];
@@ -23,6 +25,7 @@ extern const int rotationSpeed;
 // --- Global Objects & Variables ---
 extern DHT dht;
 extern Servo myservo;
+extern WiFiClient client;
 extern float dht_h, dht_t;
 extern volatile bool touched;
 extern volatile int g_dcMotorSpeed;
@@ -32,6 +35,8 @@ extern volatile float g_dhtTempC;
 extern volatile float g_dhtHumidity;
 extern volatile float g_stepperAngleDeg;
 extern volatile int g_servoPositionDeg;
+extern volatile byte systemHealth;
+
 
 // --- Function Prototypes ---
 void moveOneStep(bool dir);
@@ -42,5 +47,7 @@ void doThermistorRead();
 void doDHTRead();
 void doMicRead();
 void doTouchDisplay();
+void doTaskWebPost();
+
 
 #endif

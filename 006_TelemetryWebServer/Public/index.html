@@ -80,6 +80,8 @@
         <div class="metric"><div class="label">Stepper Angle (deg)</div><div class="value" id="stepperAngleDeg">-</div></div>
         <div class="metric"><div class="label">Servo Position (deg)</div><div class="value" id="servoPositionDeg">-</div></div>
         <div class="metric"><div class="label">Touch Detected</div><div class="value" id="touched">-</div></div>
+        <div class="metric" style="border-left: 4px solid #1f6feb;"><div class="label">Free Heap (Bytes)</div><div class="value" id="freeHeap">-</div></div>
+        <div class="metric" style="border-left: 4px solid #1f6feb;"><div class="label">Min Ever Heap (Bytes)</div><div class="value" id="minHeap">-</div></div>
       </div>
       <div class="hint">Reads data from <code>/api/telemetry</code> (authenticated).</div>
       <div class="hint">Last update: <span id="updatedAt">-</span></div>
@@ -122,7 +124,7 @@
       function setMetric(id, value) {
         document.getElementById(id).textContent = value;
       }
-      function renderTelemetry(t) {
+     function renderTelemetry(t) {
         setMetric("dcMotorSpeed", t.dcMotorSpeed);
         setMetric("micAdc", t.micAdc);
         setMetric("thermistorTempC", t.thermistorTempC);
@@ -131,6 +133,19 @@
         setMetric("stepperAngleDeg", t.stepperAngleDeg);
         setMetric("servoPositionDeg", t.servoPositionDeg);
         setMetric("touched", t.touched ? "Yes" : "No");
+        
+        // New Memory Mapping
+        setMetric("freeHeap", t.freeHeap !== undefined ? t.freeHeap : "-");
+        setMetric("minHeap", t.minHeap !== undefined ? t.minHeap : "-");
+
+        // Visual warning if memory is critically low
+        const heapVal = document.getElementById("freeHeap");
+        if (t.freeHeap > 0 && t.freeHeap < 300) {
+            heapVal.style.color = "red";
+        } else {
+            heapVal.style.color = "black";
+        }
+
         setMetric("updatedAt", t.updatedAt || "-");
       }
       async function refreshTelemetry() {

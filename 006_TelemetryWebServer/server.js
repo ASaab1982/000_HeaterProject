@@ -1,11 +1,23 @@
+require('dotenv').config(); // <--- CRITICAL: This must be line 1
 const express = require("express");
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "Public")));
+
+// Middleware to log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  if (Object.keys(req.body).length > 0) {
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
 
 const telemetry = {
   dcMotorSpeed: 0,
@@ -16,19 +28,29 @@ const telemetry = {
   stepperAngleDeg: 0,
   servoPositionDeg: 0,
   touched: false,
+  freeHeap: 0,     // <--- New
+  minHeap: 0,      // <--- New
   updatedAt: new Date().toISOString()
 };
 
 const sessions = new Set();
-const WEB_USERNAME = process.env.WEB_USERNAME || "admin";
-const WEB_PASSWORD = process.env.WEB_PASSWORD || "admin123";
+const WEB_USERNAME = process.env.WEB_USERNAME ;
+const WEB_PASSWORD = process.env.WEB_PASSWORD ;
+const ARDUINO_STATIC_TOKEN = process.env.ARDUINO_TOKEN
+sessions.add(ARDUINO_STATIC_TOKEN); // Pre-authorize the Arduino
+
+console.log("🔐 [SYSTEM]: Static Arduino Token loaded into session.");
 
 function requireAuth(req, res, next) {
   const authHeader = req.header("Authorization") || "";
   const [scheme, token] = authHeader.split(" ");
+  
   if (scheme !== "Bearer" || !token || !sessions.has(token)) {
+    console.log("❌ [AUTH FAILED]: Invalid or missing token."); // ADD THIS LINE
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
+  
+  console.log("✅ [AUTH SUCCESS]: Token accepted."); // ADD THIS LINE
   return next();
 }
 
@@ -51,14 +73,17 @@ app.post("/api/telemetry", requireAuth, (req, res) => {
   const body = req.body || {};
 
   const nextTelemetry = {
-    dcMotorSpeed: Number(body.dcMotorSpeed),
-    micAdc: Number(body.micAdc),
-    thermistorTempC: Number(body.thermistorTempC),
-    dhtTempC: Number(body.dhtTempC),
-    dhtHumidity: Number(body.dhtHumidity),
-    stepperAngleDeg: Number(body.stepperAngleDeg),
-    servoPositionDeg: Number(body.servoPositionDeg),
-    touched: Boolean(body.touched),
+    // If body.dcMotorSpeed is missing, use the current telemetry value
+    dcMotorSpeed: Number(body.dcMotorSpeed ?? telemetry.dcMotorSpeed),
+    micAdc: Number(body.micAdc ?? telemetry.micAdc),
+    thermistorTempC: Number(body.thermistorTempC ?? telemetry.thermistorTempC),
+    dhtTempC: Number(body.dhtTempC ?? telemetry.dhtTempC),
+    dhtHumidity: Number(body.dhtHumidity ?? telemetry.dhtHumidity),
+    stepperAngleDeg: Number(body.stepperAngleDeg ?? telemetry.stepperAngleDeg),
+    servoPositionDeg: Number(body.servoPositionDeg ?? telemetry.servoPositionDeg),
+    touched: body.touched !== undefined ? Boolean(body.touched) : telemetry.touched,
+    freeHeap: Number(body.freeHeap ?? telemetry.freeHeap), // <--- Added
+    minHeap: Number(body.minHeap ?? telemetry.minHeap),   // <--- Added
     updatedAt: new Date().toISOString()
   };
 
@@ -69,7 +94,9 @@ app.post("/api/telemetry", requireAuth, (req, res) => {
     "dhtTempC",
     "dhtHumidity",
     "stepperAngleDeg",
-    "servoPositionDeg"
+    "servoPositionDeg",
+    "freeHeap", 
+    "minHeap"   
   ];
 
   for (const key of numericKeys) {
