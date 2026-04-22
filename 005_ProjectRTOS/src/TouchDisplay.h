@@ -4,4 +4,7 @@
 #include "ProjectHeater.h"
 
 void doTouchDisplay();
+// Function declaration
+void TaskTouch(void* pv);
+
 #endif

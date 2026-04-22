@@ -1,5 +1,14 @@
 #include "TaskWebPost.h"
 
+ void TaskWebPost(void *pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    doTaskWebPost();
+  }
+}
+
+
 // Helper to calculate JSON length without creating a String object
 int calculateJsonLength() {
     int len = 0;

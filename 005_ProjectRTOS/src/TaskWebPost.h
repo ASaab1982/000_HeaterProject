@@ -3,6 +3,7 @@
 
 #include "ProjectHeater.h"
 
-
 void doTaskWebPost();
+void TaskWebPost(void* pv);
+
 #endif

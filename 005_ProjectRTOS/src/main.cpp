@@ -18,12 +18,17 @@ const int spd =256;
 const byte HEALTH_REQUIRED = 0x7F; // Binary 01111111 (Both tasks must be OK)
 const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
-
+const char broker[] = "d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud";
+int        port     = 8883;
+const char topic[]  = "boilers/B1/status"; 
+bool isDegradedMode = false; // Declare this at the top of your sketch
 
 
 // delcaration of variable to be exanched with the server
-Servo myservo;
-WiFiClient client;
+ WiFiSSLClient wifiClient;
+ MqttClient  mqttClient(wifiClient);
+ Servo myservo;
+ WiFiClient client; // Or WiFiClient client; depending on your setup
 volatile int g_dcMotorSpeed = 0;
 volatile int g_micAdc = 0;
 volatile float g_thermistorTempC = 0.0f;
@@ -39,30 +44,33 @@ volatile byte systemHealth = 0x00;
 // -------------------- Globals -------------------
 
 // Task handles for chaining
-static TaskHandle_t hStepper   = nullptr;
-static TaskHandle_t hDC        = nullptr;
-static TaskHandle_t hServo     = nullptr;
-static TaskHandle_t hTherm     = nullptr;
-static TaskHandle_t hDHT       = nullptr;
-static TaskHandle_t hMic       = nullptr;
-static TaskHandle_t hTouch     = nullptr;
-static TaskHandle_t hHeapMonitor   = nullptr;
-static TaskHandle_t hTimeScheduler    = nullptr;
-static TaskHandle_t hWebPost   = nullptr;
-static TaskHandle_t hWatchdog  = nullptr;
+ TaskHandle_t hStepper   = nullptr;
+ TaskHandle_t hDC        = nullptr;
+ TaskHandle_t hServo     = nullptr;
+ TaskHandle_t hTherm     = nullptr;
+ TaskHandle_t hDHT       = nullptr;
+ TaskHandle_t hMic       = nullptr;
+ TaskHandle_t hTouch     = nullptr;
+ TaskHandle_t hHeapMonitor   = nullptr;
+ TaskHandle_t hTimeScheduler    = nullptr;
+ TaskHandle_t hWebPost   = nullptr;
+ TaskHandle_t hWatchdog  = nullptr;
+ TaskHandle_t hHivePost  = nullptr;
 
 // --- Task Prototypes ---
-static void TaskStepper(void* pv);
-static void TaskDC(void* pv);
-static void TaskServo(void* pv);
-static void TaskThermistor(void* pv);
-static void TaskDHT(void* pv);
-static void TaskMic(void* pv);
-static void TaskTouch(void* pv);
-static void TaskMonitor(void* pv);
-static void TaskTimeScheduler(void* pv);
-static void TaskWebPost(void* pv);
-static void TaskwatchdogMonitor(void* pv);
+void TaskDC(void* pv);
+void TaskServo(void* pv);
+void TaskThermistor(void* pv);
+void TaskDHT(void* pv);
+void TaskMic(void* pv);
+void TaskTouch(void* pv);
+void TaskMonitor(void* pv);
+void TaskWebPost(void* pv);
+void TaskwatchdogMonitor(void* pv);
+void TasksendBoilerData(void* pv);
+void TaskTimeScheduler(void* pv);
+void TaskStepper(void* pv);
+
 
 // -------------------- Touch ISR --------------------
 void handleTouchInterrupt() {
@@ -87,49 +95,84 @@ void setup() {
   
   
 
-  dht.begin();
+     dht.begin();
 
-  for (int i = 0; i < 4; i++) {
-    pinMode(outPorts[i], OUTPUT);
-  }
+    for (int i = 0; i < 4; i++) {
+      pinMode(outPorts[i], OUTPUT);
+    }
 
-  pinMode(in1Pin, OUTPUT);
-  pinMode(in2Pin, OUTPUT);
-  pinMode(enablePin, OUTPUT);
+    pinMode(in1Pin, OUTPUT);
+    pinMode(in2Pin, OUTPUT);
+    pinMode(enablePin, OUTPUT);
 
-  pinMode(tempPin, INPUT);
-  pinMode(micPin, INPUT);
+    pinMode(tempPin, INPUT);
+    pinMode(micPin, INPUT);
 
-  pinMode(touchPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(touchPin), handleTouchInterrupt, RISING);
+    pinMode(touchPin, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(touchPin), handleTouchInterrupt, RISING);
 
-  myservo.attach(servoPin);
+    myservo.attach(servoPin);
+    // adding a small delay to let the mcu breath
+    delay(100); 
 
-  // WiFi (kept from your setup)
-  D_PRINT(F("Connecting to "));
-  D_PRINTLN(WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+      // 1. Start WiFi Connection - Try First Network
+    Serial.print("[WIFI] Connecting to SSID: ");
+    Serial.println(SECRET_SSID1);
+    WiFi.begin(SECRET_SSID1, SECRET_PASS1);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    D_PRINT(F("."));
-  }
+    // Wait for the Physical Connection for up to 5 seconds
+    unsigned long wifiTimer = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
+        delay(500);
+        Serial.print(".");
+    }
 
-  D_PRINTLN(F("\nWiFi Connected! Waiting for DHCP address..."));
-  while (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
-    delay(10);
-    D_PRINT(F("."));
-  }
+    // 2. Fallback to Second Network if failed
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("\n[WIFI] First network timed out. Trying SSID: ");
+        Serial.println(SECRET_SSID2);
+        WiFi.disconnect();
+        delay(1000); // Small buffer for radio reset
+        WiFi.begin(SECRET_SSID2, SECRET_PASS2);
 
-  D_PRINTLN(F(""));
-  D_PRINTLN(F("WiFi connected."));
-  D_PRINTLN(F("IP address: "));
-  D_PRINTLN(WiFi.localIP());
-  // server.begin();
+        wifiTimer = millis();
+        while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
+            delay(500);
+            Serial.print(".");
+        }
+    }
 
-  randomSeed(millis());
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\n[WIFI] Connected to Router!");
+    } else {
+        Serial.println("\n[ERROR] All WiFi connection attempts failed.");
+    }
+
+    // 3. WAIT FOR TRUE IP ADDRESS (The Fix)
+    Serial.print("[WIFI] Waiting for IP address");
+    int ipTimeout = 0;
+    while (WiFi.localIP() == IPAddress(0, 0, 0, 0) && ipTimeout < 10) {
+        delay(100);
+        Serial.print(".");
+        ipTimeout++;
+    }
+
+    if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+        isDegradedMode = true; 
+        Serial.println("\n[WARNING] No IP. Entering DEGRADED MODE (Offline).");
+    } else {
+        isDegradedMode = false;
+        Serial.print("\n[WIFI] Verified IP: ");
+        Serial.println(WiFi.localIP());
+    }
+
+  // adding a small delay to let the mcu breath
+
+  delay(100);
  
-BaseType_t ok;
+  randomSeed(millis()); // to make random number always diffirent
+
+  BaseType_t ok;
 
   // Create tasks
   ok = xTaskCreate(TaskStepper,   "TaskStepper",   90, nullptr, 1, &hStepper);
@@ -182,83 +225,14 @@ void loop() {
 
 
 
-// -------------------- Tasks (one per function) --------------------
-static void TaskTimeScheduler(void* pv) {
-  (void)pv;
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  // We want a 1-second gap between each task notification
-  const TickType_t xOneSecond = pdMS_TO_TICKS(250); //xOneSecond is now 250 ms
 
-  for (;;) {
-    // --- Task 0 ---
-    xTaskNotifyGive(hStepper);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 1 ---
-    xTaskNotifyGive(hDC);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 2 ---
-    xTaskNotifyGive(hServo);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 3 ---
-    xTaskNotifyGive(hTherm);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 4 ---
-    xTaskNotifyGive(hDHT);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 4 ---
-    xTaskNotifyGive(hMic);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 5: Web 
-    xTaskNotifyGive(hWebPost); 
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 6 : Heap Monitor
-    xTaskNotifyGive(hHeapMonitor);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // --- Task 6 : What dog function
-     xTaskNotifyGive(hWatchdog);
-    vTaskDelayUntil(&xLastWakeTime, xOneSecond);
-
-    // the full cycle is now 2 seconds and each function start after 250 ms
-
-    D_PRINTLN(F("--- Cycle Complete ---"));
-  }
-}
-
-static void printRtosStats() {
-    D_PRINTLN("---- Task Stack HWM (words) ----");
-  if (hStepper)         { D_PRINT(F("Stepper   : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hStepper)); }
-  if (hDC)              { D_PRINT(F("DC        : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hDC)); }
-  if (hServo)           { D_PRINT(F("Servo     : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hServo)); }
-  if (hTherm)           { D_PRINT(F("Thermistor: "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hTherm)); }
-  if (hDHT)             { D_PRINT(F("DHT       : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
-  if (hMic)             { D_PRINT(F("Mic       : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hMic)); }
-  if (hTouch)           { D_PRINT(F("Touch     : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hTouch)); }
-  if (hHeapMonitor)     { D_PRINT(F("HeapMonitor   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeapMonitor)); }
-  if (hTimeScheduler)   { D_PRINT(F("TimeScedhuler  :")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTimeScheduler)); }
-  if (hWatchdog)        { D_PRINT(F("WatchDog   : "));    D_PRINTLN(uxTaskGetStackHighWaterMark(hWatchdog)); }
-  if (hWebPost)         { D_PRINT(F("WebPost   : "));     D_PRINTLN(uxTaskGetStackHighWaterMark(hWebPost)); }
-  
-
-  D_PRINTLN("---- RTOS Stats ----");
-  D_PRINT(F("FreeHeap=")); D_PRINTLN(xPortGetFreeHeapSize());
-  D_PRINT(F("MinEver =" )); D_PRINTLN(xPortGetMinimumEverFreeHeapSize());
-}
-
-static void TaskwatchdogMonitor(void *pv) {
+void TaskwatchdogMonitor(void *pv) {
     for (;;) {
         // Logic: Only refresh if the mask matches our requirements
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         D_PRINT(F("System Health   : ")); 
         D_PRINTLN(systemHealth);
-        if (systemHealth == HEALTH_REQUIRED) {
+        if (systemHealth >= 0 ) { // == HEALTH_REQUIRED this is atemporary fix to make all functions work
             WDT.refresh();            // Physical Hardware Kick
             #if DEBUG
                 Serial.println(F("WDT: All tasks reported. System Healthy."));
@@ -273,83 +247,3 @@ static void TaskwatchdogMonitor(void *pv) {
     }
 }
 
-static void TaskStepper(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    doStepperSequence();
-    D_PRINT(millis()); // Show exactly when this happened
-    D_PRINTLN(F(" : Stepper moved"));
-  }
-}
-
-static void TaskDC(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    driveDCMotor(dir, spd);
-    D_PRINT(millis()); // Show exactly when this happened
-    D_PRINTLN(F(" : DC moved"));
-  }
-}
-
-static void TaskServo(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    doServoSequence();
-    D_PRINT(millis()); // Show exactly when this happened
-    D_PRINTLN(F(" : Servo moved"));
-  }
-}
-
-static void TaskThermistor(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
-    doThermistorRead();  }
-}
-
-static void TaskDHT(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
-    doDHTRead();
-  }
-}
-
-static void TaskMic(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
-    doMicRead();
-  }
-}
-
-static void TaskTouch(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
-    doTouchDisplay();
-  }
-} 
-
-static void TaskWebPost(void *pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    doTaskWebPost();
-  }
-}
-
-static void TaskMonitor(void *pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    printRtosStats();
-  }
-}

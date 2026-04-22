@@ -1,6 +1,16 @@
 #include "DCMotor.h"
 
 
+ void TaskDC(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    driveDCMotor(dir, spd);
+    D_PRINT(millis()); // Show exactly when this happened
+    D_PRINTLN(F(" : DC moved"));
+  }
+}
+
 void driveDCMotor(bool dir, int spd) {
   if (dir) {
     digitalWrite(in1Pin, HIGH);

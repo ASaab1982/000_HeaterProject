@@ -1,5 +1,17 @@
 #include "ServoControl.h"
 
+
+ void TaskServo(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    doServoSequence();
+    D_PRINT(millis()); // Show exactly when this happened
+    D_PRINTLN(F(" : Servo moved"));
+  }
+}
+
+
 void doServoSequence() {
   /*
   // --- RANDOM WATCHDOG HANG SIMULATION ---

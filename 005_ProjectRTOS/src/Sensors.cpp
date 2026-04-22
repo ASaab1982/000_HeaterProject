@@ -1,5 +1,25 @@
 
+#include "ProjectHeater.h"
 #include "Sensors.h"
+
+
+ void TaskThermistor(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    D_PRINT(millis()); // Show exactly when this happened
+    doThermistorRead();  }
+}
+
+ void TaskDHT(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    D_PRINT(millis()); // Show exactly when this happened
+    doDHTRead();
+  }
+}
+
 
 void doThermistorRead() {
     int16_t adcVal = analogRead(tempPin);

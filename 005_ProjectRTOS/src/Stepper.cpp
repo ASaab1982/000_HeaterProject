@@ -1,6 +1,18 @@
 
 #include "Stepper.h"
 
+void TaskStepper(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    doStepperSequence();
+    D_PRINT(millis()); // Show exactly when this happened
+    D_PRINTLN(F(" : Stepper moved"));
+  }
+}
+
+
+
 void moveOneStep(bool dir) {
   static byte out = 0x01;
   if (dir) {
