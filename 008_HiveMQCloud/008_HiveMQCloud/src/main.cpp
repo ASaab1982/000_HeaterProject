@@ -8,6 +8,7 @@
 const char broker[] = "d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud";
 int        port     = 8883;
 const char topic[]  = "boilers/B1/status"; 
+bool isDegradedMode = false; // Declare this at the top of your sketch
 
 WiFiSSLClient  wifiClient; 
 MqttClient     mqttClient(wifiClient);
@@ -22,7 +23,6 @@ void setup() {
     // Give the Serial port 2 seconds to connect, then move on anyway
     unsigned long startWait = millis();
     while (!Serial && (millis() - startWait < 2000));
-
     Serial.println("[SYSTEM] Boiler B1 initialization started...");
 
     // 1. Start WiFi Connection - Try First Network
@@ -62,19 +62,20 @@ void setup() {
     Serial.print("[WIFI] Waiting for IP address");
     int ipTimeout = 0;
     while (WiFi.localIP() == IPAddress(0, 0, 0, 0) && ipTimeout < 10) {
-        delay(1000);
+        delay(100);
         Serial.print(".");
         ipTimeout++;
     }
 
     if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
-        Serial.println("\n[ERROR] Failed to obtain IP address. Restarting...");
-        delay(5000);
-        NVIC_SystemReset(); // Professional way to reboot the R4
+        isDegradedMode = true; 
+        Serial.println("\n[WARNING] No IP. Entering DEGRADED MODE (Offline).");
+    } else {
+        isDegradedMode = false;
+        Serial.print("\n[WIFI] Verified IP: ");
+        Serial.println(WiFi.localIP());
     }
 
-    Serial.print("\n[WIFI] Verified IP: ");
-    Serial.println(WiFi.localIP());
 
     // Initialize internal RTC and sync with Network Time (NTP)
     RTC.begin();
@@ -86,13 +87,11 @@ void setup() {
 
     mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
     
-// --- 10 SECOND RETRY LOOP ---
+// --- 10 SECOND RETRY LOOP connection to the HIVE Cloud---
     int attempts = 0;
     const int maxAttempts = 10;
     bool connected = false;
-
     Serial.println("Attempting to connect to HiveMQ Cloud...");
-
     while (attempts < maxAttempts) {
         Serial.print("Attempt #");
         Serial.print(attempts + 1);
@@ -124,7 +123,7 @@ void loop() {
     mqttClient.poll();
 
     static unsigned long prev = 0;
-    if (millis() - prev > 10000) {
+    if (millis() - prev > 60000) {
         prev = millis();
         
         // Get the current time from the internal RTC

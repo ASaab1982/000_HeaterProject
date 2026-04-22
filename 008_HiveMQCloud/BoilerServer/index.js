@@ -1,13 +1,15 @@
 const mqtt = require('mqtt');
 
+require('dotenv').config();
+
 // --- Configuration ---
 // Note the 'mqtts://' for secure connection on port 8883
 const brokerUrl = 'mqtts://d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud:8883';
 
 const options = {
     clientId: 'Boiler_Manager_Server_' + Math.random().toString(16).substring(2, 8),
-    username: 'AhmadSaab',
-    password: 'Arda1669*', // Put the password you used in secrets.h here
+    username: process.env.MQTT_USERNAME, // Reads from .env
+    password: process.env.MQTT_PASSWORD, // Reads from .env
     clean: true
 };
 
