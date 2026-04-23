@@ -19,7 +19,7 @@
 #include "Secrets.h"
 #include "DebugMacros.h"
 #include "HeapMonitor.h"
-#include "TaskWebPost.h"
+#include "DataToCloud.h"
 #include "Scheduler.h"
 
 
@@ -34,7 +34,7 @@ extern const int rotationSpeed;
 // Class object
 extern DHT dht;
 extern Servo myservo;
-extern WiFiClient client;
+// extern WiFiClient client;
 extern WiFiSSLClient wifiClient;
 extern MqttClient  mqttClient;
 
@@ -51,9 +51,7 @@ extern volatile int g_servoPositionDeg;
 extern volatile byte systemHealth;
 extern TaskHandle_t hStepper, hDC, hServo, hTherm, hDHT, hMic, 
                      hTouch, hHeapMonitor, hTimeScheduler, 
-                     hWatchdog, hWebPost;
-
-
+                     hWatchdog, hWebPost, hTaskCloud;
 // --- Function declaration ---
 
 

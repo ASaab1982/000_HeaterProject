@@ -23,7 +23,7 @@ void printRtosStats() {
     if (hHeapMonitor)   { D_PRINT(F("HeapMon   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeapMonitor)); }
     if (hTimeScheduler) { D_PRINT(F("Scheduler : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTimeScheduler)); }
     if (hWatchdog)      { D_PRINT(F("WatchDog  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWatchdog)); }
-    if (hWebPost)       { D_PRINT(F("WebPost   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWebPost)); }
+    if (hTaskCloud)       { D_PRINT(F("CloudPost   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTaskCloud)); }
 
     D_PRINTLN(F("---- RTOS Stats ----"));
     D_PRINT(F("FreeHeap=")); D_PRINTLN(xPortGetFreeHeapSize());

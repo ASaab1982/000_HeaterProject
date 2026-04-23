@@ -25,7 +25,7 @@ void TaskTimeScheduler(void* pv) {
     if (hMic)         xTaskNotifyGive(hMic);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hWebPost)     xTaskNotifyGive(hWebPost); 
+    if (hTaskCloud)     xTaskNotifyGive(hTaskCloud); 
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hHeapMonitor) xTaskNotifyGive(hHeapMonitor);

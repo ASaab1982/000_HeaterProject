@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boiler Control Center</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; padding: 50px; }
+        .card { background: #1e1e1e; border: 2px solid #333; border-radius: 15px; padding: 25px; width: 300px; text-align: center; }
+        .temp { font-size: 3em; color: #ff5722; margin: 10px 0; }
+        .status { text-transform: uppercase; font-weight: bold; padding: 5px 10px; border-radius: 5px; background: #444; }
+        .online { border-color: #4caf50; }
+    </style>
+</head>
+<body>
+
+    <div class="card" id="boiler-card">
+        <h2>Boiler: <span id="boiler-id">---</span></h2>
+        <div class="temp"><span id="temp-val">--</span>°C</div>
+        <p>Current State: <span class="status" id="status-val">Waiting...</span></p>
+        <p style="font-size: 0.8em; color: #777;">Last Update: <span id="time-val">Never</span></p>
+    </div>
+
+    <!-- Include the Socket.io client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // Listen for the 'boilerUpdate' event from the server
+        socket.on('boilerUpdate', (data) => {
+            console.log('Received data:', data);
+
+            // Update the UI elements
+            document.getElementById('boiler-id').innerText = data.id || 'Unknown';
+            document.getElementById('temp-val').innerText = data.temp || '0';
+            document.getElementById('status-val').innerText = data.state || 'UNKNOWN';
+            
+            // Add a timestamp
+            const now = new Date();
+            document.getElementById('time-val').innerText = now.toLocaleTimeString();
+
+            // Visual feedback: blink the card green on update
+            const card = document.getElementById('boiler-card');
+            card.classList.add('online');
+            setTimeout(() => card.classList.remove('online'), 500);
+        });
+
+        socket.on('connect', () => console.log('Connected to Server Bridge!'));
+    </script>
+</body>
+</html>
