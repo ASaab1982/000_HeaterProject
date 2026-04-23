@@ -5,6 +5,10 @@ void TaskTimeScheduler(void* pv) {
   (void)pv;
   TickType_t xLastWakeTime = xTaskGetTickCount();
   const TickType_t xInterval = pdMS_TO_TICKS(250); 
+  
+  // Track when we last sent data to the cloud
+  TickType_t xLastCloudTime = xTaskGetTickCount();
+  const TickType_t xCloudInterval = pdMS_TO_TICKS(30000); // 60 seconds
 
   for (;;) {
     if (hStepper)     xTaskNotifyGive(hStepper);
@@ -25,7 +29,14 @@ void TaskTimeScheduler(void* pv) {
     if (hMic)         xTaskNotifyGive(hMic);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hTaskCloud)     xTaskNotifyGive(hTaskCloud); 
+    // --- CONDITIONALLY NOTIFY CLOUD ---
+    // Check if 60 seconds have passed since the last cloud update
+    if (hTaskCloud && (xTaskGetTickCount() - xLastCloudTime >= xCloudInterval)) {
+        xTaskNotifyGive(hTaskCloud); 
+        xLastCloudTime = xTaskGetTickCount(); // Reset the timer
+        D_PRINTLN(F("☁️ Cloud Update Triggered"));
+    }
+    // We still delay here to keep the 250ms "rhythm" for the other tasks
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hHeapMonitor) xTaskNotifyGive(hHeapMonitor);
@@ -37,16 +48,3 @@ void TaskTimeScheduler(void* pv) {
     D_PRINTLN(F("--- Cycle Complete ---"));
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

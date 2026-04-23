@@ -129,9 +129,15 @@ void TaskCloud(void *pvParameters) {
 
 void sendBoilerData() {
     JsonDocument doc;
-    doc["id"] = "B1";
-    doc["temp"] = 70.0; // Placeholders for now
-    doc["state"] = "IDLE";
+    doc["dcMotorSpeed"] = g_dcMotorSpeed;
+    doc["micAdc"] = g_micAdc;
+    doc["thermistorTempC"] = g_thermistorTempC;
+    doc["dhtTempC"] = g_dhtTempC;
+    doc["dhtHumidity"] = g_dhtHumidity;
+    doc["stepperAngleDeg"] = g_stepperAngleDeg;
+    doc["servoPositionDeg"] = g_servoPositionDeg;
+    doc["touched"] = touched;
+    doc["systemHealth"] = systemHealth;
     
     mqttClient.beginMessage(topic);
     serializeJson(doc, mqttClient);

@@ -21,27 +21,52 @@ const options = {
 
 const client = mqtt.connect(brokerUrl, options);
 
+// --- SOCKET AUTHENTICATION LOGIC ---
+io.on('connection', (socket) => {
+    console.log(`🔌 New connection: ${socket.id}`);
+
+    socket.on('login', (creds) => {
+        // Use credentials stored securely in the .env file
+        if (creds.username === process.env.WEB_USERNAME && creds.password === process.env.WEB_PASSWORD) {
+            console.log(`✅ ${socket.id} authenticated`);
+            socket.join('authorized'); // Add this user to the authorized room
+            socket.emit('loginResponse', { success: true });
+        } else {
+            console.log(`❌ ${socket.id} failed login`);
+            socket.emit('loginResponse', { success: false, message: 'Invalid credentials' });
+        }
+    });
+});
+
 client.on('connect', () => {
     console.log('✅ Connected to HiveMQ');
-    client.subscribe('boilers/B1/status');
+    // Subscribe to ALL boilers using the '+' wildcard
+    client.subscribe('boilers/+/status');
 });
 
 client.on('message', (topic, message) => {
     try {
         const data = JSON.parse(message.toString());
         
+        // Extract Boiler ID from topic (e.g., "boilers/B1/status" -> "B1")
+        const topicParts = topic.split('/');
+        data.boilerId = topicParts[1]; 
+
         // --- Get the exact time ---
         const now = new Date();
         const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
 
         // --- 1. DATA RECEIVED FROM HIVE ---
-        console.log(`\n🐝 [HIVE] @ ${timestamp}`);
-        console.log(`| Boiler: ${data.id} | Temp: ${data.temp}°C | Status: ${data.state}`);
+        console.log(`\n🐝 [HIVE] @ ${timestamp} | Boiler: ${data.boilerId}`);
+        console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Thermistor: ${data.thermistorTempC}°C`);
+        console.log(`| Motor: ${data.dcMotorSpeed} | Stepper: ${data.stepperAngleDeg}° | Servo: ${data.servoPositionDeg}°`);
+        console.log(`| Mic ADC: ${data.micAdc} | Touched: ${data.touched} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
         console.log('---------------------------------------------------------');
 
         // --- 2. DATA PUSHED TO UI ---
-        io.emit('boilerUpdate', data); 
-        console.log(`🖥️ [UI] Broadcasted at ${new Date().toLocaleTimeString()}`);
+        // Only send updates to sockets in the 'authorized' room
+        io.to('authorized').emit('boilerUpdate', data); 
+        console.log(`🖥️ [UI] Broadcasted ${data.boilerId} at ${new Date().toLocaleTimeString()}`);
         
     } catch (e) {
         console.log(`⚠️ [${new Date().toLocaleTimeString()}] Non-JSON: ${message.toString()}`);
