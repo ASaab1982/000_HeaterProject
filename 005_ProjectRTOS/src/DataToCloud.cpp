@@ -3,11 +3,14 @@
 
 const char broker[] = "d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud";
 int        port     = 8883;
-const char topic[]  = "boilers/B1/status"; 
+const char statusTopic[]  = "boilers/B1/status"; 
+const char commandTopic[] = "boilers/B1/commands";
 bool isDegradedMode = false; // Declare this at the top of your sketch
 
 void TaskCloud(void *pvParameters) {
     // === STAGE 1: ONE-TIME INITIALIZATION ===
+    // [2-WAY COMMUNICATION] Registration: Set the callback function to handle incoming MQTT messages
+    mqttClient.onMessage(onMqttMessageReceived);
     // This happens only once when the task starts
   // 1. Start WiFi Connection - Try First Network
     Serial.print("[WIFI] Connecting to SSID: ");
@@ -75,6 +78,8 @@ void TaskCloud(void *pvParameters) {
     }
 
     mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
+    mqttClient.setId("Arduino_Heater_Unit_B1");
+    mqttClient.setCleanSession(true);      // Don't leave ghosts behind
 
 // --- 10 SECOND RETRY LOOP connection to the HIVE Cloud---
     int attempts = 0;
@@ -99,6 +104,8 @@ void TaskCloud(void *pvParameters) {
 
     if (connected) {
         Serial.println("SUCCESS: Connected to HiveMQ!");
+        // [2-WAY COMMUNICATION] Subscription: Listen for messages on the dedicated command topic
+        mqttClient.subscribe(commandTopic);
     } else {
         Serial.println("-----------------------------------------");
         Serial.println("FATAL FAILURE: Could not connect after 10s.");
@@ -111,24 +118,26 @@ void TaskCloud(void *pvParameters) {
 
     // === STAGE 2: THE INFINITE LOOP ===
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        // Keep the connection alive
+        // [2-WAY COMMUNICATION] Increased Responsiveness: The task now polls for messages every 100ms 
+        // instead of waiting indefinitely for the scheduler's 30s periodic trigger.
+        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == pdPASS) {
+            // If we were notified by the scheduler, perform the 30s periodic update
+            sendBoilerData(); 
+        }
+
         mqttClient.poll();
 
-        // Optional: Add auto-reconnect logic if connection drops
         if (!mqttClient.connected()) {
             Serial.println(F("[CLOUD] Connection lost! Retrying..."));
             mqttClient.connect(broker, port);
         }
-
-        // Send data or do work
-        sendBoilerData(); 
     }
 }
 
 
 void sendBoilerData() {
     JsonDocument doc;
+    doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
     doc["dcMotorSpeed"] = g_dcMotorSpeed;
     doc["micAdc"] = g_micAdc;
     doc["thermistorTempC"] = g_thermistorTempC;
@@ -138,9 +147,51 @@ void sendBoilerData() {
     doc["servoPositionDeg"] = g_servoPositionDeg;
     doc["touched"] = touched;
     doc["systemHealth"] = systemHealth;
+    // [2-WAY COMMUNICATION] Include heater state and target Home in the outgoing status JSON
+    doc["heaterState"] = heaterState;
+    doc["targetHomeTemp"] = targetHomeTemp;
     
-    mqttClient.beginMessage(topic);
+    // We set the 'retained' flag to true. HiveMQ will now store this message
+    // and give it to the server immediately when it connects/restarts.
+    mqttClient.beginMessage(statusTopic, true);
     serializeJson(doc, mqttClient);
     mqttClient.endMessage(); // This is the moment the "Handoff" happens
     D_PRINTLN(" + Data Sent To HIVE");
+}
+
+// [2-WAY COMMUNICATION] Message Callback: Parses incoming JSON commands and updates local variables
+void onMqttMessageReceived(int messageSize) {
+    // Read the message into a string or buffer
+    String message = "";
+    while (mqttClient.available()) {
+        message += (char)mqttClient.read();
+    }
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, message);
+    if (error) {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return;
+    }
+
+    const char* command = doc["command"];
+    if (command && strcmp(command, "heater") == 0) {
+        const char* action = doc["action"];
+        heaterState = (strcmp(action, "on") == 0);
+        Serial.print("Heater is now: "); Serial.println(heaterState ? "ON" : "OFF");
+        // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
+        sendBoilerData(); 
+    } else if (command && strcmp(command, "temperature") == 0) {
+        float value = doc["value"];
+
+        // [SAFETY] Hardware-level clamp to enforce 5-30°C range (Defense in Depth)
+        if (value < 5.0f) value = 5.0f;
+        if (value > 30.0f) value = 30.0f;
+
+        targetHomeTemp = value;
+        Serial.print("New Target Home: "); Serial.println(targetHomeTemp);
+        // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
+        sendBoilerData(); 
+    }
 }

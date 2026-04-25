@@ -35,6 +35,9 @@ volatile float g_stepperAngleDeg = 0.0f;
 volatile int g_servoPositionDeg = 0;
 volatile bool touched = false;
 volatile byte systemHealth = 0x00;
+// [2-WAY COMMUNICATION] Global state variables that represent the current status of the heater
+volatile bool heaterState = false; 
+volatile float targetHomeTemp = 20.0f;
 
 // Your setup() and RTOS tasks remain here...
 
@@ -190,4 +193,3 @@ void TaskwatchdogMonitor(void *pv) {
         systemHealth = 0x00;      // Reset for next cycle regardless of success
     }
 }
-

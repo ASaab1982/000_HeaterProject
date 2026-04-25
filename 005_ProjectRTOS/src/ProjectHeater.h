@@ -49,14 +49,18 @@ extern volatile float g_dhtHumidity;
 extern volatile float g_stepperAngleDeg;
 extern volatile int g_servoPositionDeg;
 extern volatile byte systemHealth;
+// [2-WAY COMMUNICATION] Extern declarations for global heater variables
+extern volatile bool heaterState;
+extern volatile float targetHomeTemp;
 extern TaskHandle_t hStepper, hDC, hServo, hTherm, hDHT, hMic, 
                      hTouch, hHeapMonitor, hTimeScheduler, 
                      hWatchdog, hWebPost, hTaskCloud;
 // --- Function declaration ---
 
-
 void TasksendBoilerData(void* pv);
 void TaskwatchdogMonitor(void* pv);
+// [2-WAY COMMUNICATION] Function prototype for the incoming message handler
+void onMqttMessageReceived(int messageSize);
 void TaskTimeScheduler(void* pv);
 
 extern const int outPorts[4];

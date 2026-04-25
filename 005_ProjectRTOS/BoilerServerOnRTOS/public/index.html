@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Boiler Control Center</title>
+    <!--the style section defines the display of my web page"-->
     <style>
         body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; padding: 50px; }
         .container { background: #1e1e1e; border: 2px solid #333; border-radius: 15px; padding: 25px; width: 500px; margin-bottom: 20px; }
@@ -21,10 +22,16 @@
         input { width: 90%; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #444; color: white; border-radius: 5px; }
         button { width: 97%; padding: 10px; background: #ff5722; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         button:hover { background: #e64a19; }
+        .heater-controls { margin-top: 20px; padding-top: 15px; border-top: 1px solid #333; }
+        .heater-controls button { width: 48%; margin-right: 2%; display: inline-block; }
+        .heater-controls button:last-child { margin-right: 0; }
+        .heater-controls input { width: 60%; display: inline-block; margin-right: 2%; }
     </style>
 </head>
-<body>
 
+<!-- "the body section defines what I Want to display on my web page, not that  I have two hidden section : the boiler card and heater control card" -->
+<!-- "here I can put any display window or control window "-->
+<body>
     <div id="login-section" class="login-box">
         <h2>Secure Access</h2>
         <input type="text" id="user-input" placeholder="Username">
@@ -60,13 +67,36 @@
             Last Update: <span id="time-val">Never</span> | Logged in as: <span id="logged-in-user"></span>
         </div>
     </div>
+    
+    <!-- [2-WAY COMMUNICATION] Added Heater Control Section for user interaction -->
+    <div class="container hidden" id="heater-control-card">
+        <h2>Heater Controls</h2>
+        <table>
+            <tr><td>Heater Status</td><td class="val"><span id="heaterState">OFF</span></td></tr>
+            <tr><td>Target Home</td><td class="val"><span id="targetHomeTemp">--</span> °C</td></tr>
+        </table>
+        <div class="heater-controls">
+            <button onclick="sendHeaterCommand('heater', 'on')">Heater ON</button>
+            <button onclick="sendHeaterCommand('heater', 'off')">Heater OFF</button>
+            <input type="number" id="target-temp-input" placeholder="Set Target Home (°C)" min="5" max="30" step="0.5">
+            <button onclick="sendHeaterCommand('temperature', parseFloat(document.getElementById('target-temp-input').value))">Set Temp</button>
+            <div id="temp-error" style="color: #ff5722; font-size: 0.8em; margin-top: 5px; min-height: 1em;"></div>
+        </div>
+    </div>
 
-    <!-- Include the Socket.io client library -->
+    <!-- Include the Socket.io client library 
+     1User enters credentials and clicks login.
+     2Browser sends data to server via Socket.io.
+     3Server checks database/env variables.
+     4Server sends back a loginResponse (True or False).
+     5UI updates instantly to show the heater controls or an error.
+     -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const loginSection = document.getElementById('login-section');
         const boilerCard = document.getElementById('boiler-card');
+        const heaterControlCard = document.getElementById('heater-control-card'); // New: Heater control card
         const errorMsg = document.getElementById('error-msg');
         
         function attemptLogin() {
@@ -80,6 +110,7 @@
             if (res.success) {
                 loginSection.classList.add('hidden');
                 boilerCard.classList.remove('hidden');
+                heaterControlCard.classList.remove('hidden'); // New: Show heater control card
                 errorMsg.innerText = ''; // Clear any previous error messages
                 document.getElementById('logged-in-user').innerText = document.getElementById('user-input').value;
             } else {
@@ -87,10 +118,13 @@
             }
         });
 
+        <!-- client-side logout, we simply hide the dashboard and show the login form.
+        A more robust solution would involve sending a 'logout' event to the server
+        to invalidate the session or remove the socket from authorized rooms.
+        --> 
         function attemptLogout() {
-            // For a client-side logout, we simply hide the dashboard and show the login form.
-            // A more robust solution would involve sending a 'logout' event to the server
-            // to invalidate the session or remove the socket from authorized rooms.
+
+            heaterControlCard.classList.add('hidden'); // New: Hide heater control card
             boilerCard.classList.add('hidden');
             loginSection.classList.remove('hidden');
             document.getElementById('user-input').value = ''; // Clear username
@@ -103,7 +137,7 @@
             console.log('Received data:', data);
 
             // Update the UI elements
-            document.getElementById('boiler-id-display').innerText = data.boilerId || 'Unknown';
+            document.getElementById('boiler-id-display').innerText = data.deviceId || 'Unknown';
             document.getElementById('dhtTempC').innerText = data.dhtTempC ?? '--';
             document.getElementById('dhtHumidity').innerText = data.dhtHumidity ?? '--';
             document.getElementById('thermistorTempC').innerText = data.thermistorTempC ?? '--';
@@ -113,6 +147,9 @@
             document.getElementById('micAdc').innerText = data.micAdc ?? '--';
             document.getElementById('touched').innerText = data.touched ? "TOUCHED" : "OFF";
             
+            // [2-WAY COMMUNICATION] State Display Update: Reflects the current state of variables on the Arduino
+            document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";
+            document.getElementById('targetHomeTemp').innerText = data.targetHomeTemp ?? '--';
             const healthHex = "0x" + Number(data.systemHealth || 0).toString(16).toUpperCase();
             document.getElementById('systemHealth').innerText = healthHex;
 
@@ -125,6 +162,45 @@
             card.classList.add('online');
             setTimeout(() => card.classList.remove('online'), 500);
         });
+        
+        // [2-WAY COMMUNICATION] Command Sending Logic: Captures user input and sends it to the server bridge via Socket.io
+        function sendHeaterCommand(commandType, value) {
+            const deviceId = document.getElementById('boiler-id-display').innerText;
+            if (deviceId === '--' || deviceId === 'Unknown') {
+                alert('Boiler ID is unknown. Please wait for data or log in.');
+                return;
+            }
+
+            const payload = { command: commandType };
+            const errorSpan = document.getElementById('temp-error');
+
+            if (commandType === 'heater') {
+                payload.action = value; // 'on' or 'off'
+            } else if (commandType === 'temperature') {
+                if (isNaN(value)) return;
+
+                // [VALIDATION] Enforce 5-30°C range and provide UI feedback
+                if (value > 30) {
+                    value = 30; // Force to maximum allowed
+                    document.getElementById('target-temp-input').value = 30;
+                    if (errorSpan) errorSpan.innerText = "Temperature above 30°C not allowed";
+                } else if (value < 5) {
+                    value = 5; // Force to minimum allowed
+                    document.getElementById('target-temp-input').value = 5;
+                    if (errorSpan) errorSpan.innerText = "Temperature below 5°C not allowed";
+                } else if (errorSpan) {
+                    errorSpan.innerText = ""; // Clear message if valid
+                }
+
+                // Automatically clear error message after 3 seconds for better UX
+                if (errorSpan && errorSpan.innerText !== "") {
+                    setTimeout(() => { errorSpan.innerText = ""; }, 3000);
+                }
+
+                payload.value = value;
+            }
+            socket.emit('heaterCommand', { deviceId: deviceId, payload: payload });
+        }
 
         socket.on('connect', () => console.log('Connected to Server Bridge!'));
     </script>
