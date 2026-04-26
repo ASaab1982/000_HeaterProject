@@ -5,132 +5,88 @@ const char broker[] = "d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud";
 int        port     = 8883;
 const char statusTopic[]  = "boilers/B1/status"; 
 const char commandTopic[] = "boilers/B1/commands";
-bool isDegradedMode = false; // Declare this at the top of your sketch
+bool isDegradedMode = false; // Declare this at the top of your sketch wifi is down or Hive is down
+
+// Simulation of wrong conenction to hive 
+unsigned long lastPortSwap = 0;
+bool simulationPortActive = false;
+bool initializeCloud();
+// enf of simulation a prameter 
 
 void TaskCloud(void *pvParameters) {
-    // === STAGE 1: ONE-TIME INITIALIZATION ===
-    // [2-WAY COMMUNICATION] Registration: Set the callback function to handle incoming MQTT messages
-    mqttClient.onMessage(onMqttMessageReceived);
-    // This happens only once when the task starts
-  // 1. Start WiFi Connection - Try First Network
-    Serial.print("[WIFI] Connecting to SSID: ");
-    Serial.println(SECRET_SSID1);
-    WiFi.begin(SECRET_SSID1, SECRET_PASS1);
 
-    // Wait for the Physical Connection for up to 5 seconds
-    unsigned long wifiTimer = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    // 2. Fallback to Second Network if failed
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("\n[WIFI] First network timed out. Trying SSID: ");
-        Serial.println(SECRET_SSID2);
-        WiFi.disconnect();
-        delay(1000); // Small buffer for radio reset
-        WiFi.begin(SECRET_SSID2, SECRET_PASS2);
-
-        wifiTimer = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
-            delay(500);
-            Serial.print(".");
-        }
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[WIFI] Connected to Router!");
-    } else {
-        Serial.println("\n[ERROR] All WiFi connection attempts failed.");
-    }
-
-    // 3. WAIT FOR TRUE IP ADDRESS (The Fix)
-    Serial.print("[WIFI] Waiting for IP address");
-    int ipTimeout = 0;
-    while (WiFi.localIP() == IPAddress(0, 0, 0, 0) && ipTimeout < 10) {
-        delay(100);
-        Serial.print(".");
-        ipTimeout++;
-    }
-
-    if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
-        isDegradedMode = true; 
-        Serial.println("\n[WARNING] No IP. Entering DEGRADED MODE (Offline).");
-    } else {
-        isDegradedMode = false;
-        Serial.print("\n[WIFI] Verified IP: ");
-        Serial.println(WiFi.localIP());
-    }
-
-  // adding a small delay to let the mcu breath
-
-    delay(100);
-    randomSeed(millis()); // to make random number always diffirent
+    static bool alertSent = false;
+    static unsigned long lastConnectionTime = millis(); // Track the last time we were OK
+    const unsigned long REBOOT_THRESHOLD = 600000;      // 10 Minutes (in ms)
 
 
-   // Initialize internal RTC and sync with Network Time (NTP)
-    RTC.begin();
-    unsigned long epochTime = WiFi.getTime();
-    if (epochTime > 0) {
-        RTCTime now(epochTime);
-        RTC.setTime(now);
-    }
-
-    mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
-    mqttClient.setId("Arduino_Heater_Unit_B1");
-    mqttClient.setCleanSession(true);      // Don't leave ghosts behind
-
-// --- 10 SECOND RETRY LOOP connection to the HIVE Cloud---
-    int attempts = 0;
-    const int maxAttempts = 10;
-    bool connected = false;
-    Serial.println("Attempting to connect to HiveMQ Cloud...");
-    while (attempts < maxAttempts) {
-        Serial.print("Attempt #");
-        Serial.print(attempts + 1);
-        
-        if (mqttClient.connect(broker, port)) {
-            connected = true;
-            break; // Exit the loop early because we succeeded!
-        } else {
-            Serial.print(" - Failed (Error ");
-            Serial.print(mqttClient.connectError());
-            Serial.println("). Retrying in 1s...");
-            attempts++;
-            delay(1000); // Wait 1 second before the next try
-        }
-    }
-
-    if (connected) {
-        Serial.println("SUCCESS: Connected to HiveMQ!");
-        // [2-WAY COMMUNICATION] Subscription: Listen for messages on the dedicated command topic
-        mqttClient.subscribe(commandTopic);
-    } else {
-        Serial.println("-----------------------------------------");
-        Serial.println("FATAL FAILURE: Could not connect after 10s.");
-        Serial.println("Check credentials or Cluster URL.");
-        Serial.println("-----------------------------------------");
-        return; // This stops the setup, and loop() will check connection status
-    }
-    delay(100);
+    initializeCloud();
 
 
     // === STAGE 2: THE INFINITE LOOP ===
     for (;;) {
-        // [2-WAY COMMUNICATION] Increased Responsiveness: The task now polls for messages every 100ms 
-        // instead of waiting indefinitely for the scheduler's 30s periodic trigger.
-        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == pdPASS) {
-            // If we were notified by the scheduler, perform the 30s periodic update
-            sendBoilerData(); 
-        }
 
-        mqttClient.poll();
+        // Simulation of wrong conenction to hive 
+            unsigned long currentMillis = millis();
+
+            
+        /*
+        // 1. THE SIMULATION TIMER
+        if (!simulationPortActive && (currentMillis - lastPortSwap >= 30000)) {
+            // After 60 seconds of normal operation, switch to WRONG port
+            port = 200; 
+            simulationPortActive = true;
+            lastPortSwap = currentMillis;
+            mqttClient.stop(); // Force disconnect to apply the "broken" port
+            Serial.println(F("\n[SIMULATION] Switching to PORT 200 (Connection should fail)"));
+        } 
+        else if (simulationPortActive && (currentMillis - lastPortSwap >= 30000)) {
+            // After 10 seconds of "failure", switch back to CORRECT port
+            port = 8883; 
+            simulationPortActive = false;
+            lastPortSwap = currentMillis;
+            Serial.println(F("\n[SIMULATION] Switching back to PORT 8883 (Recovery starting)"));
+        }
+        // end of simulation
+        */
+
+
+        // This wakes up every 500ms (or whenever notified by the 30s scheduler)
+        bool notified = (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500)) == pdPASS);
 
         if (!mqttClient.connected()) {
-            Serial.println(F("[CLOUD] Connection lost! Retrying..."));
-            mqttClient.connect(broker, port);
+            // 1. ALERT LOGIC
+            if (!alertSent) {
+                Serial.println(F("\n[!] CONNECTION BROKEN: Starting 10min countdown to Reset..."));
+                isDegradedMode = true;
+                alertSent = true;
+                vTaskDelay(pdMS_TO_TICKS(5000));
+            }
+
+            // 2. CHECK THE DURATION
+            unsigned long offlineDuration = millis() - lastConnectionTime;
+            
+            if (offlineDuration >= REBOOT_THRESHOLD) {
+                Serial.println(F("\n[!!!] 10 MINUTES OFFLINE. Restarting system for recovery..."));
+                delay(1000); // Give Serial time to print
+                
+                // TRIGGER HARDWARE RESET (Arduino R4 specific)
+                NVIC_SystemReset(); 
+            }            
         }
+
+        // --- IF CONNECTED ---
+        // Update the timestamp so the 10-minute timer starts over
+        lastConnectionTime = millis(); 
+        alertSent = false;
+        isDegradedMode = false;
+        
+        mqttClient.poll();
+        
+        if (notified) {
+            sendBoilerData();
+        }
+
     }
 }
 
@@ -194,4 +150,76 @@ void onMqttMessageReceived(int messageSize) {
         // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
         sendBoilerData(); 
     }
+}
+
+bool initializeCloud() {
+    // [2-WAY COMMUNICATION] Registration
+    mqttClient.onMessage(onMqttMessageReceived);
+
+    // 1. WiFi Connection - Network 1
+    Serial.print(F("[WIFI] Connecting to SSID: "));
+    Serial.println(SECRET_SSID1);
+    WiFi.begin(SECRET_SSID1, SECRET_PASS1);
+
+    unsigned long wifiTimer = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    // 2. Fallback to Network 2
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("\n[WIFI] Trying SSID 2..."));
+        WiFi.disconnect();
+        delay(1000); 
+        WiFi.begin(SECRET_SSID2, SECRET_PASS2);
+
+        wifiTimer = millis();
+        while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
+            delay(500);
+            Serial.print(".");
+        }
+    }
+
+    // 3. IP Verification
+    int ipTimeout = 0;
+    while (WiFi.localIP() == IPAddress(0, 0, 0, 0) && ipTimeout < 10) {
+        delay(100);
+        ipTimeout++;
+    }
+
+    if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+        Serial.println(F("\n[ERROR] No IP obtained."));
+        return false; 
+    }
+
+    // 4. Sync Time (NTP)
+    RTC.begin();
+    unsigned long epochTime = WiFi.getTime();
+    if (epochTime > 0) {
+        RTCTime now(epochTime);
+        RTC.setTime(now);
+    }
+
+    // 5. MQTT Credentials
+    mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
+    mqttClient.setId("Arduino_Heater_Unit_B1");
+    mqttClient.setCleanSession(true);
+
+    // 6. HiveMQ Connection Loop
+    int attempts = 0;
+    while (attempts < 10) {
+        Serial.print(F("HiveMQ Attempt #"));
+        Serial.println(attempts + 1);
+        
+        if (mqttClient.connect(broker, port)) {
+            Serial.println(F("[SUCCESS] Connected to HiveMQ!"));
+            mqttClient.subscribe(commandTopic);
+            return true; 
+        }
+        attempts++;
+        delay(1000);
+    }
+
+    return false;
 }

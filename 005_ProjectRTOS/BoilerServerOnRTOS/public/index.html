@@ -118,10 +118,10 @@
             }
         });
 
-        <!-- client-side logout, we simply hide the dashboard and show the login form.
-        A more robust solution would involve sending a 'logout' event to the server
-        to invalidate the session or remove the socket from authorized rooms.
-        --> 
+        // client-side logout, we simply hide the dashboard and show the login form.
+        // A more robust solution would involve sending a 'logout' event to the server
+        // to invalidate the session or remove the socket from authorized rooms.
+ 
         function attemptLogout() {
 
             heaterControlCard.classList.add('hidden'); // New: Hide heater control card
@@ -132,7 +132,8 @@
             errorMsg.innerText = ''; // Clear any error messages
         }
 
-        // Listen for the 'boilerUpdate' event from the server
+
+        // Listen for the 'boilerUpdate' event from the server, this function doesn't send any command 
         socket.on('boilerUpdate', (data) => {
             console.log('Received data:', data);
 

@@ -4,7 +4,8 @@
  void TaskDC(void* pv) {
   (void)pv;
   for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // portMAX_DELAY tells the task to enter a "Blocked" state indefinitely. 
+    // It will not move to the next line of code until it receives a specific notification signal from another task or an interrupt.
     driveDCMotor(dir, spd);
     D_PRINT(millis()); // Show exactly when this happened
     D_PRINTLN(F(" : DC moved"));

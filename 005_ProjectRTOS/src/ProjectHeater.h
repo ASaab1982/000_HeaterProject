@@ -54,7 +54,7 @@ extern volatile bool heaterState;
 extern volatile float targetHomeTemp;
 extern TaskHandle_t hStepper, hDC, hServo, hTherm, hDHT, hMic, 
                      hTouch, hHeapMonitor, hTimeScheduler, 
-                     hWatchdog, hWebPost, hTaskCloud;
+                     hWatchdog, hTaskCloud;
 // --- Function declaration ---
 
 void TasksendBoilerData(void* pv);
