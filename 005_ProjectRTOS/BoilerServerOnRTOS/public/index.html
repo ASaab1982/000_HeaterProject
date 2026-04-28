@@ -26,6 +26,13 @@
         .heater-controls button { width: 48%; margin-right: 2%; display: inline-block; }
         .heater-controls button:last-child { margin-right: 0; }
         .heater-controls input { width: 60%; display: inline-block; margin-right: 2%; }
+
+        /* Error Window Styles */
+        .error-window { padding: 5px 15px; margin-bottom: 15px; border-radius: 10px; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
+        .err-offline { background: #d32f2f; color: white; border: 2px solid #ffcdd2; } /* Red for Disconnect */
+        .err-stale { background: #ffa000; color: black; border: 2px solid #ffe0b2; }   /* Orange for No Data */
+        .err-online { background: #2e7d32; color: white; border: 2px solid #a5d6a7; animation: none; } /* Green for Healthy */
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
     </style>
 </head>
 
@@ -38,6 +45,12 @@
         <input type="password" id="pass-input" placeholder="Password">
         <button onclick="attemptLogin()">Login</button>
         <p id="error-msg" style="color: #ff5722; font-size: 0.8em; margin-top: 10px;"></p>
+    </div>
+
+    <!-- Error Window for Disconnection/Stale Alerts -->
+    <div id="error-window" class="container error-window err-stale">
+        <span id="error-title" style="font-size: 1em;">SYSTEM STATUS:</span>
+        <span id="error-text" style="font-size: 0.9em;"> Waiting for connection to Boiler...</span>
     </div>
 
     <div class="container hidden" id="boiler-card">
@@ -97,6 +110,7 @@
         const loginSection = document.getElementById('login-section');
         const boilerCard = document.getElementById('boiler-card');
         const heaterControlCard = document.getElementById('heater-control-card'); // New: Heater control card
+        const errorWindow = document.getElementById('error-window');
         const errorMsg = document.getElementById('error-msg');
         
         function attemptLogin() {
@@ -131,6 +145,24 @@
             document.getElementById('pass-input').value = ''; // Clear password
             errorMsg.innerText = ''; // Clear any error messages
         }
+
+        // Handle Connectivity and Data Flow Alerts
+        socket.on('boilerStatusUpdate', (data) => {
+            const errText = document.getElementById('error-text');
+            
+            if (data.status === 'offline') {
+                errorWindow.className = 'container error-window err-offline';
+                errText.innerText = `CRITICAL: Boiler ${data.deviceId} has DISCONNECTED. (Check Power/Wi-Fi)`;
+            } 
+            else if (data.status === 'no-data') {
+                errorWindow.className = 'container error-window err-stale';
+                errText.innerText = `WARNING: No information received from ${data.deviceId} for > 90s. (Code may be frozen)`;
+            } 
+            else if (data.status === 'online') {
+                errorWindow.className = 'container error-window err-online';
+                errText.innerText = `SYSTEM HEALTHY: Boiler ${data.deviceId} is connected and transmitting.`;
+            }
+        });
 
 
         // Listen for the 'boilerUpdate' event from the server, this function doesn't send any command 

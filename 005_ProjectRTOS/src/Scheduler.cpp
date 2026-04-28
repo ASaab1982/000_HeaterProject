@@ -8,7 +8,7 @@ void TaskTimeScheduler(void* pv) {
   
   // Track when we last sent data to the cloud
   TickType_t xLastCloudTime = xTaskGetTickCount();
-  const TickType_t xCloudInterval = pdMS_TO_TICKS(30000); // 60 seconds
+  const TickType_t xCloudInterval = pdMS_TO_TICKS(15000); // 15 seconds push data to the hive
 
   for (;;) {
     if (hStepper)     xTaskNotifyGive(hStepper);

@@ -23,6 +23,7 @@ void TaskCloud(void *pvParameters) {
     initializeCloud();
 
 
+
     // === STAGE 2: THE INFINITE LOOP ===
     for (;;) {
 
@@ -73,13 +74,21 @@ void TaskCloud(void *pvParameters) {
                 // TRIGGER HARDWARE RESET (Arduino R4 specific)
                 NVIC_SystemReset(); 
             }            
+        } else {
+            // === IF CONNECTED (Normal Operation) ===
+            
+            // This is the fix: only update this while the connection is alive!
+            lastConnectionTime = currentMillis; 
+            
+            if (alertSent) {
+                Serial.println(F("[✓] CONNECTION RESTORED. Timer reset."));
+                alertSent = false;
+                isDegradedMode = false;
+            }
         }
 
         // --- IF CONNECTED ---
         // Update the timestamp so the 10-minute timer starts over
-        lastConnectionTime = millis(); 
-        alertSent = false;
-        isDegradedMode = false;
         
         mqttClient.poll();
         
@@ -201,11 +210,18 @@ bool initializeCloud() {
         RTC.setTime(now);
     }
 
-    // 5. MQTT Credentials
+    // 5. MQTT Credentials 
     mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
     mqttClient.setId("Arduino_Heater_Unit_B1");
     mqttClient.setCleanSession(true);
 
+    // --- ADDED: LAST WILL AND TESTAMENT ---
+    // This tells HiveMQ: "If I drop off, tell everyone I'm offline"
+    mqttClient.beginWill(statusTopic, 1, true); // topic, QOS 1, retained
+    mqttClient.print("offline");
+    mqttClient.endWill();
+    // ---------------------------------------
+    mqttClient.setKeepAliveInterval(30000); // 30 seconds timeout between hive and arduino
     // 6. HiveMQ Connection Loop
     int attempts = 0;
     while (attempts < 10) {
@@ -214,6 +230,14 @@ bool initializeCloud() {
         
         if (mqttClient.connect(broker, port)) {
             Serial.println(F("[SUCCESS] Connected to HiveMQ!"));
+            
+            // --- ADDED: ONLINE STATUS ---
+            // Now that we are connected, tell everyone we are back
+            mqttClient.beginMessage(statusTopic, true); // retained
+            mqttClient.print("online");
+            mqttClient.endMessage();
+            // ----------------------------
+
             mqttClient.subscribe(commandTopic);
             return true; 
         }

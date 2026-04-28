@@ -40,6 +40,11 @@ io.on('connection', (socket) => {
             // Immediately push the last known state of all boilers to the new user
             Object.values(boilerStates).forEach(state => {
                 socket.emit('boilerUpdate', state);
+                // Also sync the visual status bar immediately on login
+                socket.emit('boilerStatusUpdate', {
+                    deviceId: state.deviceId,
+                    status: state.connectionStatus || 'online'
+                });
             });
         } else {
             console.log(`❌ ${socket.id} failed login`);
@@ -66,41 +71,104 @@ io.on('connection', (socket) => {
 
 client.on('connect', () => {
     console.log('✅ Connected to HiveMQ');
-    client.subscribe('boilers/B1/status');
+    // Use a wildcard to capture status, telemetry, and any other sub-topics
+    client.subscribe('boilers/B1/#');
 });
 
 client.on('message', (topic, message) => {
-    try {
-        const data = JSON.parse(message.toString());
-        
-        // Save the data to our cache so it can be sent to users who log in later
-        if (data.deviceId) {
-            boilerStates[data.deviceId] = data;
-        }
-        
-        // --- Get the exact time ---
-        const now = new Date();
-        const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
+    const rawMessage = message.toString();
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
 
-        // --- 1. DATA RECEIVED FROM HIVE ---
-        console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
-        console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Thermistor: ${data.thermistorTempC}°C`);
-        console.log(`| Motor: ${data.dcMotorSpeed} | Stepper: ${data.stepperAngleDeg}° | Servo: ${data.servoPositionDeg}°`);
-        console.log(`| Mic ADC: ${data.micAdc} | Touched: ${data.touched} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
-        // [2-WAY COMMUNICATION] Enhanced Logging: Logging the actual state reported back by the Arduino
-        console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
+    // Initialize cache if it doesn't exist
+    if (!boilerStates['B1']) boilerStates['B1'] = { deviceId: 'B1' };
+    
+    // Every time we get a message (Status OR JSON), update the last seen timer
+    boilerStates['B1'].lastSeen = Date.now();
 
+    // 1. HANDLE STATUS STRINGS (Last Will & Testament or Manual 'online' notice)
+    if (rawMessage === 'online' || rawMessage === 'offline') {
+        console.log(`\n📡 [STATUS] Alert at ${timestamp}`);
+        console.log(`| Device: B1 | Status: ${rawMessage.toUpperCase()}`);
         console.log('---------------------------------------------------------');
 
-        // --- 2. DATA PUSHED TO UI ---
-        // Only send updates to sockets in the 'authorized' room
-        io.to('authorized').emit('boilerUpdate', data); 
-        console.log(`🖥️ [UI] Broadcasted at ${new Date().toLocaleTimeString()}`);
+        boilerStates['B1'].connectionStatus = rawMessage;
+
+        // Notify UI specifically about the connection change
+        io.to('authorized').emit('boilerStatusUpdate', {
+            deviceId: 'B1',
+            status: rawMessage,
+            timestamp: timestamp
+        });
+        
+        // Also send the full cached object to keep the UI in sync
+        io.to('authorized').emit('boilerUpdate', boilerStates['B1']);
+        return; 
+    }
+
+    // 2. HANDLE TELEMETRY DATA (JSON)
+    try {
+        const data = JSON.parse(rawMessage);
+        
+        if (data.deviceId) {
+            // Merge new sensor data with the existing status (assumed online if sending data)
+            boilerStates[data.deviceId] = { 
+                ...data, 
+                lastSeen: Date.now(),
+                connectionStatus: 'online' 
+            };
+                    // --- Get the exact time ---
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
+
+            // Log the detailed telemetry to the console
+            console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
+            console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Thermistor: ${data.thermistorTempC}°C`);
+            console.log(`| Motor: ${data.dcMotorSpeed} | Stepper: ${data.stepperAngleDeg}° | Servo: ${data.servoPositionDeg}°`);
+            console.log(`| Mic ADC: ${data.micAdc} | Touched: ${data.touched} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
+            // [2-WAY COMMUNICATION] Enhanced Logging: Logging the actual state reported back by the Arduino
+            console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
+
+            console.log('---------------------------------------------------------');
+
+            // Push the merged data to the authorized Web UI
+            io.to('authorized').emit('boilerUpdate', boilerStates[data.deviceId]);
+
+            // CRITICAL FIX: If we just received telemetry, the system is clearly 'online'.
+            // Tell the UI to turn the status bar green.
+            io.to('authorized').emit('boilerStatusUpdate', {
+                deviceId: data.deviceId,
+                status: 'online'
+            });
+        }
         
     } catch (e) {
-        console.log(`⚠️ [${new Date().toLocaleTimeString()}] Non-JSON: ${message.toString()}`);
+        // This catches malformed JSON or unexpected non-status strings
+        console.log(`⚠️ [ERROR] Failed to parse message at ${timestamp}`);
+        console.log(`| Raw Payload: ${rawMessage}`);
     }
 });
+
+// --- STALE DATA WATCHDOG ---
+// Check every 30 seconds if we haven't heard from the boiler recently
+setInterval(() => {
+    const now = Date.now();
+    const TIMEOUT = 90000; // 90 seconds threshold to detect the timeout
+
+    Object.values(boilerStates).forEach(state => {
+        // Only mark as 'no-data' if it's not already explicitly 'offline' (LWT)
+        if (state.connectionStatus !== 'offline' && (now - (state.lastSeen || 0) > TIMEOUT)) {
+            console.log(`⚠️  [WATCHDOG] No data from ${state.deviceId} for > 90s. Marking STALE.`);
+            state.connectionStatus = 'no-data';
+            
+            io.to('authorized').emit('boilerStatusUpdate', {
+                deviceId: state.deviceId,
+                status: 'no-data'
+            });
+        }
+    });
+}, 30000); // the 30s is the check interval and the 90s is the timeout interval
+
 
 // THIS IS THE KEY: It opens port 3000
 server.listen(3000, () => {
