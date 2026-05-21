@@ -6,7 +6,9 @@
     <title>Boiler Control Center</title>
     <!--the style section defines the display of my web page"-->
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; padding: 50px; }
+        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: flex-start; gap: 30px; padding: 50px; }
+        .left-col { display: flex; flex-direction: column; }
+        .right-col { display: flex; flex-direction: column; }
         .container { background: #1e1e1e; border: 2px solid #333; border-radius: 15px; padding: 25px; width: 500px; margin-bottom: 20px; }
         h2 { text-align: center; color: #ff5722; margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -39,21 +41,17 @@
 <!-- "the body section defines what I Want to display on my web page, not that  I have two hidden section : the boiler card and heater control card" -->
 <!-- "here I can put any display window or control window "-->
 <body>
-    <div id="login-section" class="login-box">
-        <h2>Secure Access</h2>
-        <input type="text" id="user-input" placeholder="Username">
-        <input type="password" id="pass-input" placeholder="Password">
-        <button onclick="attemptLogin()">Login</button>
-        <p id="error-msg" style="color: #ff5722; font-size: 0.8em; margin-top: 10px;"></p>
-    </div>
 
-    <!-- Error Window for Disconnection/Stale Alerts -->
-    <div id="error-window" class="container error-window err-stale">
-        <span id="error-title" style="font-size: 1em;">SYSTEM STATUS:</span>
-        <span id="error-text" style="font-size: 0.9em;"> Waiting for connection to Boiler...</span>
-    </div>
+    <!-- LEFT COLUMN: status banner + boiler data -->
+    <div class="left-col">
 
-    <div class="container hidden" id="boiler-card">
+        <!-- Error Window for Disconnection/Stale Alerts -->
+        <div id="error-window" class="container error-window err-stale">
+            <span id="error-title" style="font-size: 1em;">SYSTEM STATUS:</span>
+            <span id="error-text" style="font-size: 0.9em;"> Waiting for connection to Boiler...</span>
+        </div>
+
+        <div class="container" id="boiler-card">
         <button onclick="attemptLogout()" style="float: right; background: #d32f2f; margin-top: -10px; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Logout</button>
         <h2>Boiler: <span id="boiler-id-display">--</span></h2>
         <table>
@@ -81,8 +79,21 @@
         </div>
     </div>
     
-    <!-- [2-WAY COMMUNICATION] Added Heater Control Section for user interaction -->
-    <div class="container hidden" id="heater-control-card">
+    </div> <!-- end left-col -->
+
+    <!-- RIGHT COLUMN: login box + heater controls -->
+    <div class="right-col">
+
+        <div id="login-section" class="login-box">
+            <h2>Secure Access</h2>
+            <input type="text" id="user-input" placeholder="Username">
+            <input type="password" id="pass-input" placeholder="Password">
+            <button onclick="attemptLogin()">Login</button>
+            <p id="error-msg" style="color: #ff5722; font-size: 0.8em; margin-top: 10px;"></p>
+        </div>
+
+        <!-- [2-WAY COMMUNICATION] Added Heater Control Section for user interaction -->
+        <div class="container hidden" id="heater-control-card">
         <h2>Heater Controls</h2>
         <table>
             <tr><td>Heater Status</td><td class="val"><span id="heaterState">OFF</span></td></tr>
@@ -96,6 +107,8 @@
             <div id="temp-error" style="color: #ff5722; font-size: 0.8em; margin-top: 5px; min-height: 1em;"></div>
         </div>
     </div>
+
+    </div> <!-- end right-col -->
 
     <!-- Include the Socket.io client library 
      1User enters credentials and clicks login.
@@ -123,8 +136,7 @@
         socket.on('loginResponse', (res) => {
             if (res.success) {
                 loginSection.classList.add('hidden');
-                boilerCard.classList.remove('hidden');
-                heaterControlCard.classList.remove('hidden'); // New: Show heater control card
+                heaterControlCard.classList.remove('hidden'); // Show heater control card only after login
                 errorMsg.innerText = ''; // Clear any previous error messages
                 document.getElementById('logged-in-user').innerText = document.getElementById('user-input').value;
             } else {
@@ -138,9 +150,8 @@
  
         function attemptLogout() {
 
-            heaterControlCard.classList.add('hidden'); // New: Hide heater control card
-            boilerCard.classList.add('hidden');
-            loginSection.classList.remove('hidden');
+            heaterControlCard.classList.add('hidden'); // Hide control card on logout
+            loginSection.classList.remove('hidden'); // Show login box again
             document.getElementById('user-input').value = ''; // Clear username
             document.getElementById('pass-input').value = ''; // Clear password
             errorMsg.innerText = ''; // Clear any error messages

@@ -30,22 +30,21 @@ const client = mqtt.connect(brokerUrl, options);
 io.on('connection', (socket) => {
     console.log(`🔌 New connection: ${socket.id}`);
 
+    // Send current boiler state immediately to ALL new visitors (no login needed to see data)
+    Object.values(boilerStates).forEach(state => {
+        socket.emit('boilerUpdate', state);
+        socket.emit('boilerStatusUpdate', {
+            deviceId: state.deviceId,
+            status: state.connectionStatus || 'online'
+        });
+    });
+
     socket.on('login', (creds) => {
         // Use credentials stored securely in the .env file
         if (creds.username === process.env.WEB_USERNAME && creds.password === process.env.WEB_PASSWORD) {
             console.log(`✅ ${socket.id} authenticated`);
             socket.join('authorized'); // Add this user to the authorized room
             socket.emit('loginResponse', { success: true });
-
-            // Immediately push the last known state of all boilers to the new user
-            Object.values(boilerStates).forEach(state => {
-                socket.emit('boilerUpdate', state);
-                // Also sync the visual status bar immediately on login
-                socket.emit('boilerStatusUpdate', {
-                    deviceId: state.deviceId,
-                    status: state.connectionStatus || 'online'
-                });
-            });
         } else {
             console.log(`❌ ${socket.id} failed login`);
             socket.emit('loginResponse', { success: false, message: 'Invalid credentials' });
@@ -94,15 +93,15 @@ client.on('message', (topic, message) => {
 
         boilerStates['B1'].connectionStatus = rawMessage;
 
-        // Notify UI specifically about the connection change
-        io.to('authorized').emit('boilerStatusUpdate', {
+        // Notify ALL connected users about the connection change
+        io.emit('boilerStatusUpdate', {
             deviceId: 'B1',
             status: rawMessage,
             timestamp: timestamp
         });
-        
+
         // Also send the full cached object to keep the UI in sync
-        io.to('authorized').emit('boilerUpdate', boilerStates['B1']);
+        io.emit('boilerUpdate', boilerStates['B1']);
         return; 
     }
 
@@ -131,12 +130,12 @@ client.on('message', (topic, message) => {
 
             console.log('---------------------------------------------------------');
 
-            // Push the merged data to the authorized Web UI
-            io.to('authorized').emit('boilerUpdate', boilerStates[data.deviceId]);
+            // Push the merged data to ALL connected users
+            io.emit('boilerUpdate', boilerStates[data.deviceId]);
 
             // CRITICAL FIX: If we just received telemetry, the system is clearly 'online'.
             // Tell the UI to turn the status bar green.
-            io.to('authorized').emit('boilerStatusUpdate', {
+            io.emit('boilerStatusUpdate', {
                 deviceId: data.deviceId,
                 status: 'online'
             });
@@ -161,7 +160,7 @@ setInterval(() => {
             console.log(`⚠️  [WATCHDOG] No data from ${state.deviceId} for > 90s. Marking STALE.`);
             state.connectionStatus = 'no-data';
             
-            io.to('authorized').emit('boilerStatusUpdate', {
+            io.emit('boilerStatusUpdate', {
                 deviceId: state.deviceId,
                 status: 'no-data'
             });
