@@ -47,8 +47,14 @@
 
         <!-- Error Window for Disconnection/Stale Alerts -->
         <div id="error-window" class="container error-window err-stale">
-            <span id="error-title" style="font-size: 1em;">SYSTEM STATUS:</span>
-            <span id="error-text" style="font-size: 0.9em;"> Waiting for connection to Boiler...</span>
+            <div>
+                <span style="font-size: 0.85em; opacity: 0.8;">🌡️ BOILER:</span>
+                <span id="error-text" style="font-size: 0.9em;"> Waiting for connection to Boiler...</span>
+            </div>
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <span style="font-size: 0.85em; opacity: 0.8;">🔗 BRIDGE:</span>
+                <span id="bridge-text" style="font-size: 0.9em;"> Connecting to HiveMQ...</span>
+            </div>
         </div>
 
         <div class="container" id="boiler-card">
@@ -247,6 +253,24 @@
         }
 
         socket.on('connect', () => console.log('Connected to Server Bridge!'));
+
+        // Bridge status: Node.js ↔ HiveMQ link
+        socket.on('bridgeStatus', (data) => {
+            const bridgeText = document.getElementById('bridge-text');
+            if (data.status === 'connected') {
+                bridgeText.innerText = ' Node.js → HiveMQ: CONNECTED ✓';
+                bridgeText.style.color = '#a5d6a7';
+            } else if (data.status === 'disconnected') {
+                bridgeText.innerText = ' Node.js → HiveMQ: DISCONNECTED ✗';
+                bridgeText.style.color = '#ffcdd2';
+            } else if (data.status === 'reconnecting') {
+                bridgeText.innerText = ' Node.js → HiveMQ: Reconnecting...';
+                bridgeText.style.color = '#ffe0b2';
+            } else if (data.status === 'error') {
+                bridgeText.innerText = ' Node.js → HiveMQ: ERROR ✗';
+                bridgeText.style.color = '#ffcdd2';
+            }
+        });
     </script>
 </body>
 </html>
