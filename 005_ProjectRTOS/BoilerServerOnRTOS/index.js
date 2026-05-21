@@ -202,8 +202,9 @@ setInterval(() => {
 }, 30000);
 
 // --- START SERVER ---
-// Opens the HTTP server on port 3000. The browser connects to this port.
+// Opens the HTTP server on the port assigned by the platform (Render), or 3000 locally.
 // Socket.io and Express both share this same server instance.
-server.listen(3000, () => {
-    console.log('🚀 Server started! Open http://localhost:3000 in your browser');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`🚀 Server started! Open http://localhost:${PORT} in your browser`);
 });
