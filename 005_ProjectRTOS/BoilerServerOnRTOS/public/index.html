@@ -61,21 +61,23 @@
         <button onclick="attemptLogout()" style="float: right; background: #d32f2f; margin-top: -10px; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Logout</button>
         <h2>Boiler: <span id="boiler-id-display">--</span></h2>
         <table>
-            <thead>
-                <tr>
-                    <th>Sensor / Metric</th>
-                    <th>Current Value</th>
-                </tr>
-            </thead>
+
             <tbody>
+                <!-- SENSORS -->
+                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">📡 Sensors</td></tr>
                 <tr><td>DHT Temperature</td><td class="val"><span id="dhtTempC">--</span> °C</td></tr>
                 <tr><td>DHT Humidity</td><td class="val"><span id="dhtHumidity">--</span> %</td></tr>
                 <tr><td>Thermistor Temp</td><td class="val"><span id="thermistorTempC">--</span> °C</td></tr>
-                <tr><td>DC Motor Speed</td><td class="val"><span id="dcMotorSpeed">--</span></td></tr>
-                <tr><td>Stepper Angle</td><td class="val"><span id="stepperAngleDeg">--</span> °</td></tr>
-                <tr><td>Servo Position</td><td class="val"><span id="servoPositionDeg">--</span> °</td></tr>
-                <tr><td>Mic ADC Level</td><td class="val"><span id="micAdc">--</span></td></tr>
-                <tr><td>Touch Sensor</td><td class="val"><span id="touched">--</span></td></tr>
+                <tr><td>Water Temperature</td><td class="val"><span id="waterTemperature">--</span></td></tr>
+
+                <!-- ACTUATORS -->
+                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">⚙️ Actuators</td></tr>
+                <tr><td>Water Pump</td><td class="val"><span id="waterpumpactivation">--</span></td></tr>
+                <tr><td>Heater</td><td class="val"><span id="heaterActivation">--</span></td></tr>
+                <tr><td>Water Valve Position</td><td class="val"><span id="waterValvePosition">--</span></td></tr>
+
+                <!-- GENERIC -->
+                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">🔧 Generic</td></tr>
                 <tr><td>System Health</td><td class="val"><span id="systemHealth">--</span></td></tr>
             </tbody>
         </table>
@@ -191,11 +193,10 @@
             document.getElementById('dhtTempC').innerText = data.dhtTempC ?? '--';
             document.getElementById('dhtHumidity').innerText = data.dhtHumidity ?? '--';
             document.getElementById('thermistorTempC').innerText = data.thermistorTempC ?? '--';
-            document.getElementById('dcMotorSpeed').innerText = data.dcMotorSpeed ?? '--';
-            document.getElementById('stepperAngleDeg').innerText = data.stepperAngleDeg ?? '--';
-            document.getElementById('servoPositionDeg').innerText = data.servoPositionDeg ?? '--';
-            document.getElementById('micAdc').innerText = data.micAdc ?? '--';
-            document.getElementById('touched').innerText = data.touched ? "TOUCHED" : "OFF";
+            document.getElementById('waterpumpactivation').innerText = data.waterpumpactivation === 100 ? 'ON' : 'OFF';
+            document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
+            document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';
+            document.getElementById('waterTemperature').innerText = data.waterTemperature ?? '--';
             
             // [2-WAY COMMUNICATION] State Display Update: Reflects the current state of variables on the Arduino
             document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";

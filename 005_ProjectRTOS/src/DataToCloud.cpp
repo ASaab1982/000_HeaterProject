@@ -103,14 +103,13 @@ void TaskCloud(void *pvParameters) {
 void sendBoilerData() {
     JsonDocument doc;
     doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
-    doc["dcMotorSpeed"] = g_dcMotorSpeed;
-    doc["micAdc"] = g_micAdc;
+    doc["waterpumpactivation"] = g_WaterPumpSpeed;
+    doc["waterTemperature"] = g_waterAdc;
     doc["thermistorTempC"] = g_thermistorTempC;
     doc["dhtTempC"] = g_dhtTempC;
     doc["dhtHumidity"] = g_dhtHumidity;
-    doc["stepperAngleDeg"] = g_stepperAngleDeg;
-    doc["servoPositionDeg"] = g_servoPositionDeg;
-    doc["touched"] = touched;
+    doc["heaterActivation"] = g_heaterPosition ? "ON" : "OFF";
+    doc["waterValvePosition"] = g_waterValvePosition;
     doc["systemHealth"] = systemHealth;
     // [2-WAY COMMUNICATION] Include heater state and target Home in the outgoing status JSON
     doc["heaterState"] = heaterState;

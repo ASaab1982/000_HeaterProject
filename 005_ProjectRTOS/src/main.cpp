@@ -10,8 +10,8 @@
 DHT dht(DHTPIN, DHTTYPE);
 
 // Define all variables here (no 'static') so the 'extern' in .h files can find them
-const int outPorts[4] = {13, 12, 11, 10};
-const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, micPin = A1, touchPin = 3, servoPin = 5;
+const int HeaterPin = 11;
+const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, waterPin = A1, servoPin = 5;
 const int rotationSpeed = 256;
 const bool dir =1; 
 const int spd =256; 
@@ -26,31 +26,34 @@ const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
  MqttClient  mqttClient(wifiClient);
  Servo myservo;
  //WiFiClient client; // Or WiFiClient client; depending on your setup
-volatile int g_dcMotorSpeed = 0;
-volatile int g_micAdc = 0;
+volatile int g_WaterPumpSpeed = 0;
+volatile int g_waterAdc = 0;
 volatile float g_thermistorTempC = 0.0f;
 volatile float g_dhtTempC = 0.0f;
 volatile float g_dhtHumidity = 0.0f;
-volatile float g_stepperAngleDeg = 0.0f;
-volatile int g_servoPositionDeg = 0;
-volatile bool touched = false;
+volatile float g_heaterPosition = 0.0f;
+volatile int g_waterValvePosition = 0;
 volatile byte systemHealth = 0x00;
 // [2-WAY COMMUNICATION] Global state variables that represent the current status of the heater
-volatile bool heaterState = false; 
+volatile bool heaterState = false;
 volatile float targetHomeTemp = 20.0f;
+
+// [SIMULATION] Thermal model variables
+volatile float g_boilerWaterTemp = 20.0f; // Simulated boiler water temperature (°C)
+volatile float g_homeTemp        = 20.0f; // Simulated home air temperature (°C)
+volatile float g_outdoorTemp     = 10.0f; // Outdoor temperature received from server via MQTT (°C)
 
 // Your setup() and RTOS tasks remain here...
 
 // -------------------- Globals -------------------
 
 // Task handles for chaining
- TaskHandle_t hStepper   = nullptr;
- TaskHandle_t hDC        = nullptr;
- TaskHandle_t hServo     = nullptr;
+ TaskHandle_t hHeater     = nullptr;
+ TaskHandle_t hWaterPump  = nullptr;
+ TaskHandle_t hWaterValve = nullptr;
  TaskHandle_t hTherm     = nullptr;
  TaskHandle_t hDHT       = nullptr;
- TaskHandle_t hMic       = nullptr;
- TaskHandle_t hTouch     = nullptr;
+ TaskHandle_t hWater     = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
  TaskHandle_t hTaskCloud   = nullptr;
@@ -58,24 +61,18 @@ volatile float targetHomeTemp = 20.0f;
  TaskHandle_t hHivePost  = nullptr;
 
 // --- Task Prototypes ---
-void TaskDC(void* pv);
-void TaskServo(void* pv);
+void TaskWaterPump(void* pv);
+void TaskWaterValve(void* pv);
 void TaskThermistor(void* pv);
 void TaskDHT(void* pv);
-void TaskMic(void* pv);
-void TaskTouch(void* pv);
+void TaskWater(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
 void TaskwatchdogMonitor(void* pv);
 void TasksendBoilerData(void* pv);
 void TaskTimeScheduler(void* pv);
-void TaskStepper(void* pv);
+void TaskHeater(void* pv);
 
-
-// -------------------- Touch ISR --------------------
-void handleTouchInterrupt() {
-  vTaskNotifyGiveFromISR(hTouch, NULL);
-}
 
 
 // -------------------- Arduino setup/loop --------------------
@@ -93,23 +90,16 @@ void setup() {
     D_PRINTLN(F("[OK] Watchdog Hardware initialized (5s  timeout)."));
   }
   
-  
-
      dht.begin();
 
-    for (int i = 0; i < 4; i++) {
-      pinMode(outPorts[i], OUTPUT);
-    }
-
+    pinMode(HeaterPin, OUTPUT);
     pinMode(in1Pin, OUTPUT);
     pinMode(in2Pin, OUTPUT);
     pinMode(enablePin, OUTPUT);
 
     pinMode(tempPin, INPUT);
-    pinMode(micPin, INPUT);
+    pinMode(waterPin, INPUT);
 
-    pinMode(touchPin, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(touchPin), handleTouchInterrupt, RISING);
 
     myservo.attach(servoPin);
     // adding a small delay to let the mcu breath
@@ -120,15 +110,14 @@ void setup() {
   BaseType_t ok;
 
   // Create tasks
-  ok = xTaskCreate(TaskStepper,   "TaskStepper",   100, nullptr, 1, &hStepper);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskStepper create failed")); for(;;){} }
+  ok = xTaskCreate(TaskHeater,     "TaskHeater",    100, nullptr, 1, &hHeater);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskDC,        "TaskDC",        90, nullptr, 1, &hDC);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskDC create failed")); for(;;){} }
+  ok = xTaskCreate(TaskWaterPump,  "TaskWaterPump", 90, nullptr, 1, &hWaterPump);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskWaterPump create failed")); for(;;){} }
 
-
-  ok =  xTaskCreate(TaskServo,     "TaskServo",     90, nullptr, 1, &hServo);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskServo create failed")); for(;;){} }
+  ok = xTaskCreate(TaskWaterValve, "TaskWaterValve", 90, nullptr, 1, &hWaterValve);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskWaterValve create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 1, &hTherm);
@@ -139,12 +128,10 @@ void setup() {
   if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskMic,       "TaskMic",       70, nullptr, 1, &hMic);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskMic create failed")); for(;;){} }
+  ok = xTaskCreate(TaskWater,     "TaskWater",     70, nullptr, 1, &hWater);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskWater create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskTouch,     "TaskTouch",    50, nullptr, 1, &hTouch);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskTouch create failed")); for(;;){} }
 
   ok =   xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
   if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }

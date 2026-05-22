@@ -11,13 +11,13 @@ void TaskTimeScheduler(void* pv) {
   const TickType_t xCloudInterval = pdMS_TO_TICKS(15000); // 15 seconds push data to the hive
 
   for (;;) {
-    if (hStepper)     xTaskNotifyGive(hStepper);
+    if (hHeater)      xTaskNotifyGive(hHeater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hDC)          xTaskNotifyGive(hDC);
+    if (hWaterPump)   xTaskNotifyGive(hWaterPump);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hServo)       xTaskNotifyGive(hServo);
+    if (hWaterValve)  xTaskNotifyGive(hWaterValve);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hTherm)       xTaskNotifyGive(hTherm);
@@ -26,7 +26,7 @@ void TaskTimeScheduler(void* pv) {
     if (hDHT)         xTaskNotifyGive(hDHT);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hMic)         xTaskNotifyGive(hMic);
+    if (hWater)       xTaskNotifyGive(hWater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     // --- CONDITIONALLY NOTIFY CLOUD ---

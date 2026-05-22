@@ -162,8 +162,8 @@ client.on('message', (topic, message) => {
 
             console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
             console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Thermistor: ${data.thermistorTempC}°C`);
-            console.log(`| Motor: ${data.dcMotorSpeed} | Stepper: ${data.stepperAngleDeg}° | Servo: ${data.servoPositionDeg}°`);
-            console.log(`| Mic ADC: ${data.micAdc} | Touched: ${data.touched} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
+            console.log(`| WaterPump: ${data.waterpumpactivation} | Heater: ${data.heaterActivation} | WaterValve: ${data.waterValvePosition}`);
+            console.log(`| Water Temp: ${data.waterTemperature} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
             console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
             console.log('---------------------------------------------------------');
 

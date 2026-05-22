@@ -10,12 +10,11 @@
 #include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
 #include <RTC.h>
-#include "Stepper.h"
+#include "Heater.h"
 #include "Sensors.h"
-#include "DCMotor.h"
-#include "ServoControl.h"
-#include "MicRead.h"
-#include "TouchDisplay.h"
+#include "WaterPump.h"
+#include "WaterValve.h"
+#include "WaterRead.h"
 #include "Secrets.h"
 #include "DebugMacros.h"
 #include "HeapMonitor.h"
@@ -25,9 +24,9 @@
 
 
 // --- Global Pins ---
-extern const int outPorts[4];
+extern const int HeaterPin;
 extern const uint8_t in1Pin, in2Pin, enablePin;
-extern const uint8_t servoPin, touchPin, tempPin, micPin;
+extern const uint8_t servoPin, tempPin, waterPin;
 extern const int rotationSpeed;
 
 // --- Global Objects & Variables ---
@@ -40,20 +39,24 @@ extern MqttClient  mqttClient;
 
 // Normal object
 extern float dht_h, dht_t;
-extern volatile bool touched;
-extern volatile int g_dcMotorSpeed;
-extern volatile int g_micAdc;
+extern volatile int g_WaterPumpSpeed;
+extern volatile int g_waterAdc;
 extern volatile float g_thermistorTempC;
 extern volatile float g_dhtTempC;
 extern volatile float g_dhtHumidity;
-extern volatile float g_stepperAngleDeg;
-extern volatile int g_servoPositionDeg;
+extern volatile float g_heaterPosition;
+extern volatile int g_waterValvePosition;
 extern volatile byte systemHealth;
 // [2-WAY COMMUNICATION] Extern declarations for global heater variables
 extern volatile bool heaterState;
 extern volatile float targetHomeTemp;
-extern TaskHandle_t hStepper, hDC, hServo, hTherm, hDHT, hMic, 
-                     hTouch, hHeapMonitor, hTimeScheduler, 
+
+// [SIMULATION] Thermal model variables
+extern volatile float g_boilerWaterTemp; // Simulated boiler water temperature (°C)
+extern volatile float g_homeTemp;        // Simulated home air temperature (°C)
+extern volatile float g_outdoorTemp;     // Outdoor temperature - fixed default, update later via MQTT (°C)
+extern TaskHandle_t hHeater, hWaterPump, hWaterValve, hTherm, hDHT, hWater,
+                     hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud;
 // --- Function declaration ---
 
@@ -63,10 +66,7 @@ void TaskwatchdogMonitor(void* pv);
 void onMqttMessageReceived(int messageSize);
 void TaskTimeScheduler(void* pv);
 
-extern const int outPorts[4];
-extern const uint8_t in1Pin , in2Pin , enablePin , tempPin , micPin , touchPin , servoPin;
-extern const int rotationSpeed;
-extern const bool dir; 
-extern const int spd; 
+extern const bool dir;
+extern const int spd;
 
 #endif
