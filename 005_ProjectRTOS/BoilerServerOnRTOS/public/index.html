@@ -38,6 +38,13 @@
         .err-stale { background: #ffa000; color: black; border: 2px solid #ffe0b2; }   /* Orange for No Data */
         .err-online { background: #2e7d32; color: white; border: 2px solid #a5d6a7; animation: none; } /* Green for Healthy */
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+
+        /* Responsive layout for mobile screens */
+        @media (max-width: 700px) {
+            body { flex-direction: column; align-items: center; padding: 15px; gap: 0; }
+            .container { width: 100%; box-sizing: border-box; }
+            .login-box { width: 100%; box-sizing: border-box; }
+        }
     </style>
 </head>
 
