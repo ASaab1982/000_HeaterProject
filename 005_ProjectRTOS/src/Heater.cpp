@@ -26,5 +26,17 @@ void doHeaterSequence() {
     digitalWrite(HeaterPin, LOW);
     g_heaterPosition = 0; // 0 = OFF
   }
+  // [HEATER MODEL] Update boiler water temperature simulation every scheduler tick (~2.25s)
+  updateHeaterModel();
+
+  // [MANUAL OVERRIDE] When override is OFF, calculate heaterState automatically.
+  // Hysteresis: ON below setpoint, OFF above setpoint+5°C, no change in between.
+  if (!manualOverride) {
+      if (g_boilerWaterTemp < heaterTempSetPoint)
+          heaterState = true;
+      else if (g_boilerWaterTemp > heaterTempSetPoint + 5.0f)
+          heaterState = false;
+  }
+
   systemHealth |= (1 << 4);
 }

@@ -11,6 +11,7 @@
 #include <ArduinoJson.h>
 #include <RTC.h>
 #include "Heater.h"
+#include "HeaterModel.h" // [HEATER MODEL] Boiler water temperature simulation
 #include "Sensors.h"
 #include "WaterPump.h"
 #include "WaterValve.h"
@@ -50,11 +51,14 @@ extern volatile byte systemHealth;
 // [2-WAY COMMUNICATION] Extern declarations for global heater variables
 extern volatile bool heaterState;
 extern volatile float targetHomeTemp;
+// [MANUAL OVERRIDE] true = manual UI control, false = automatic thermostat logic in Heater.cpp
+extern volatile bool manualOverride;
 
 // [SIMULATION] Thermal model variables
-extern volatile float g_boilerWaterTemp; // Simulated boiler water temperature (°C)
-extern volatile float g_homeTemp;        // Simulated home air temperature (°C)
-extern volatile float g_outdoorTemp;     // Outdoor temperature - fixed default, update later via MQTT (°C)
+extern volatile float g_boilerWaterTemp;    // Simulated boiler water temperature (°C)
+extern volatile float g_homeTemp;           // Simulated home air temperature (°C)
+extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by Open-Meteo data via MQTT (°C)
+extern volatile float heaterTempSetPoint;   // Boiler water target temperature (°C), controlled via UI (40–70°C)
 
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.

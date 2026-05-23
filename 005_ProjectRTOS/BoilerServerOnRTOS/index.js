@@ -29,7 +29,10 @@ async function fetchWeatherData() {
         const humidity = json.current.relative_humidity_2m;
 
         const payload = JSON.stringify({ command: 'weather', outdoorTemp: temp, outdoorHumidity: humidity });
-        client.publish('boilers/B1/commands', payload, { qos: 0, retain: false }, (error) => {
+        // [WEATHER] Published to a dedicated retained topic so the Arduino receives it
+        // immediately on subscribe, regardless of when it connects relative to Node.js.
+        // retain: true means HiveMQ stores the last value — no timing race on Arduino reboot.
+        client.publish('boilers/B1/weather', payload, { qos: 0, retain: true }, (error) => {
             if (error) {
                 console.error('❌ [WEATHER] Failed to publish weather data:', error);
             } else {
@@ -199,7 +202,7 @@ client.on('message', (topic, message) => {
             console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
             console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Thermistor: ${data.thermistorTempC}°C`);
             console.log(`| WaterPump: ${data.waterpumpactivation} | Heater: ${data.heaterActivation} | WaterValve: ${data.waterValvePosition}`);
-            console.log(`| Water Temp: ${data.waterTemperature} | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
+            console.log(`| Boiler Water Temp: ${data.boilerWaterTemp}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
             console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
             console.log('---------------------------------------------------------');
 

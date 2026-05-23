@@ -37,11 +37,15 @@ volatile byte systemHealth = 0x00;
 // [2-WAY COMMUNICATION] Global state variables that represent the current status of the heater
 volatile bool heaterState = false;
 volatile float targetHomeTemp = 20.0f;
+// [MANUAL OVERRIDE] true = heater ON/OFF controlled manually from UI
+//                   false = heaterState calculated automatically from boiler temperature vs setpoint
+volatile bool manualOverride = false;
 
 // [SIMULATION] Thermal model variables
-volatile float g_boilerWaterTemp = 20.0f; // Simulated boiler water temperature (°C)
-volatile float g_homeTemp        = 20.0f; // Simulated home air temperature (°C)
-volatile float g_outdoorTemp     = 10.0f; // Startup default — overwritten by real Open-Meteo data via MQTT "weather" command
+volatile float g_boilerWaterTemp    = 20.0f;  // Simulated boiler water temperature (°C)
+volatile float g_homeTemp           = 20.0f;  // Simulated home air temperature (°C)
+volatile float g_outdoorTemp        = 10.0f;  // Startup default — overwritten by real Open-Meteo data via MQTT "weather" command
+volatile float heaterTempSetPoint   = 40.0f;  // Startup default — boiler water target temperature (°C), controlled via UI (40–70°C)
 
 // [WEATHER] Flag set to true when Node.js has pushed real outdoor weather data via MQTT.
 // While true, the DHT task skips its physical sensor read so cloud values are not overwritten.
@@ -135,8 +139,7 @@ void setup() {
   ok = xTaskCreate(TaskWater,     "TaskWater",     70, nullptr, 1, &hWater);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWater create failed")); for(;;){} }
 
-
-
+  
   ok =   xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
   if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
 

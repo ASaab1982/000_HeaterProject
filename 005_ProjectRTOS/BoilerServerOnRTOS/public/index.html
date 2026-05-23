@@ -6,28 +6,31 @@
     <title>Boiler Control Center</title>
     <!--the style section defines the display of my web page"-->
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: flex-start; gap: 30px; padding: 50px; }
+        body { font-family: sans-serif; background: #ffffff; color: #111111; display: flex; justify-content: center; align-items: flex-start; gap: 30px; padding: 50px; }
         .left-col { display: flex; flex-direction: column; }
         .right-col { display: flex; flex-direction: column; }
-        .container { background: #1e1e1e; border: 2px solid #333; border-radius: 15px; padding: 25px; width: 500px; margin-bottom: 20px; }
-        h2 { text-align: center; color: #ff5722; margin-top: 0; }
+        .container { background: #f5f5f5; border: 2px solid #ddd; border-radius: 15px; padding: 25px; width: 500px; margin-bottom: 20px; }
+        h2 { text-align: center; color: #1976d2; margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
-        th { color: #777; font-size: 0.9em; text-transform: uppercase; }
-        .val { font-family: monospace; color: #4caf50; font-weight: bold; font-size: 1.1em; }
-        .online { border-color: #4caf50; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { color: #555; font-size: 0.9em; text-transform: uppercase; }
+        .val { font-family: monospace; color: #2e7d32; font-weight: bold; font-size: 1.1em; }
+        .online { border-color: #2e7d32; }
         .hidden { display: none; }
-        .footer { text-align: center; font-size: 0.8em; color: #777; margin-top: 20px; }
-        
+        .footer { text-align: center; font-size: 0.8em; color: #555; margin-top: 20px; }
+
         /* Simple Login Styles */
-        .login-box { background: #1e1e1e; border: 2px solid #333; border-radius: 15px; padding: 40px; width: 300px; text-align: center; }
-        input { width: 90%; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #444; color: white; border-radius: 5px; }
-        button { width: 97%; padding: 10px; background: #ff5722; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #e64a19; }
-        .heater-controls { margin-top: 20px; padding-top: 15px; border-top: 1px solid #333; }
+        .login-box { background: #f5f5f5; border: 2px solid #ddd; border-radius: 15px; padding: 40px; width: 300px; text-align: center; }
+        input { width: 90%; padding: 10px; margin: 10px 0; background: #ffffff; border: 1px solid #ccc; color: #111111; border-radius: 5px; }
+        button { width: 97%; padding: 10px; background: #1976d2; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #1565c0; }
+        .heater-controls { margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; }
         .heater-controls button { width: 48%; margin-right: 2%; display: inline-block; }
         .heater-controls button:last-child { margin-right: 0; }
         .heater-controls input { width: 60%; display: inline-block; margin-right: 2%; }
+        /* 2x2 grid for the 4 mode/heater control buttons */
+        .button-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .button-grid button { width: 100%; margin: 0; }
 
         /* Error Window Styles */
         .error-window { padding: 5px 15px; margin-bottom: 15px; border-radius: 10px; text-align: center; font-weight: bold; animation: pulse 2s infinite; }
@@ -64,20 +67,20 @@
 
             <tbody>
                 <!-- SENSORS -->
-                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">📡 Sensors</td></tr>
+                <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">📡 Sensors</td></tr>
                 <tr><td>DHT Temperature</td><td class="val"><span id="dhtTempC">--</span> °C</td></tr>
                 <tr><td>DHT Humidity</td><td class="val"><span id="dhtHumidity">--</span> %</td></tr>
                 <tr><td>Thermistor Temp</td><td class="val"><span id="thermistorTempC">--</span> °C</td></tr>
-                <tr><td>Water Temperature</td><td class="val"><span id="waterTemperature">--</span></td></tr>
+                <tr><td>Boiler Water Temp</td><td class="val"><span id="boilerWaterTemp">--</span> °C</td></tr>
 
                 <!-- ACTUATORS -->
-                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">⚙️ Actuators</td></tr>
+                <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">⚙️ Actuators</td></tr>
                 <tr><td>Water Pump</td><td class="val"><span id="waterpumpactivation">--</span></td></tr>
                 <tr><td>Heater</td><td class="val"><span id="heaterActivation">--</span></td></tr>
                 <tr><td>Water Valve Position</td><td class="val"><span id="waterValvePosition">--</span></td></tr>
 
                 <!-- GENERIC -->
-                <tr><td colspan="2" style="color:#ff5722; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">🔧 Generic</td></tr>
+                <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">🔧 Generic</td></tr>
                 <tr><td>System Health</td><td class="val"><span id="systemHealth">--</span></td></tr>
             </tbody>
         </table>
@@ -97,7 +100,7 @@
             <input type="text" id="user-input" placeholder="Username">
             <input type="password" id="pass-input" placeholder="Password">
             <button onclick="attemptLogin()">Login</button>
-            <p id="error-msg" style="color: #ff5722; font-size: 0.8em; margin-top: 10px;"></p>
+            <p id="error-msg" style="color: #1976d2; font-size: 0.8em; margin-top: 10px;"></p>
         </div>
 
         <!-- [2-WAY COMMUNICATION] Added Heater Control Section for user interaction -->
@@ -105,14 +108,25 @@
         <h2>Heater Controls</h2>
         <table>
             <tr><td>Heater Status</td><td class="val"><span id="heaterState">OFF</span></td></tr>
+            <tr><td>Control Mode</td><td class="val"><span id="manualOverride">--</span></td></tr>
             <tr><td>Target Home</td><td class="val"><span id="targetHomeTemp">--</span> °C</td></tr>
+            <tr><td>Boiler Setpoint</td><td class="val"><span id="heaterTempSetPoint">--</span> °C</td></tr>
         </table>
         <div class="heater-controls">
-            <button onclick="sendHeaterCommand('heater', 'on')">Heater ON</button>
-            <button onclick="sendHeaterCommand('heater', 'off')">Heater OFF</button>
+            <!-- [MANUAL OVERRIDE] 2x2 grid: mode toggle + heater ON/OFF -->
+            <div class="button-grid">
+                <button onclick="sendHeaterCommand('manualOverride', 1)">Manual Mode</button>
+                <button onclick="sendHeaterCommand('manualOverride', 0)">Auto Mode</button>
+                <button onclick="sendHeaterCommand('heater', 'on')">Heater ON</button>
+                <button onclick="sendHeaterCommand('heater', 'off')">Heater OFF</button>
+            </div>
             <input type="number" id="target-temp-input" placeholder="Set Target Home (°C)" min="5" max="30" step="0.5">
             <button onclick="sendHeaterCommand('temperature', parseFloat(document.getElementById('target-temp-input').value))">Set Temp</button>
-            <div id="temp-error" style="color: #ff5722; font-size: 0.8em; margin-top: 5px; min-height: 1em;"></div>
+            <div id="temp-error" style="color: #1976d2; font-size: 0.8em; margin-top: 5px; min-height: 1em;"></div>
+            <!-- [HEATER SETPOINT] Boiler water target temperature input (40–70°C) -->
+            <input type="number" id="heater-setpoint-input" placeholder="Set Boiler Setpoint (°C)" min="40" max="70" step="1">
+            <button onclick="sendHeaterCommand('heaterSetPoint', parseFloat(document.getElementById('heater-setpoint-input').value))">Set Boiler Temp</button>
+            <div id="setpoint-error" style="color: #1976d2; font-size: 0.8em; margin-top: 5px; min-height: 1em;"></div>
         </div>
     </div>
 
@@ -196,11 +210,13 @@
             document.getElementById('waterpumpactivation').innerText = data.waterpumpactivation === 100 ? 'ON' : 'OFF';
             document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
             document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';
-            document.getElementById('waterTemperature').innerText = data.waterTemperature ?? '--';
+            document.getElementById('boilerWaterTemp').innerText = data.boilerWaterTemp ?? '--';
             
             // [2-WAY COMMUNICATION] State Display Update: Reflects the current state of variables on the Arduino
             document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";
+            document.getElementById('manualOverride').innerText = data.manualOverride ? "MANUAL" : "AUTO";
             document.getElementById('targetHomeTemp').innerText = data.targetHomeTemp ?? '--';
+            document.getElementById('heaterTempSetPoint').innerText = data.heaterTempSetPoint ?? '--';
             const healthHex = "0x" + Number(data.systemHealth || 0).toString(16).toUpperCase();
             document.getElementById('systemHealth').innerText = healthHex;
 
@@ -227,25 +243,49 @@
 
             if (commandType === 'heater') {
                 payload.action = value; // 'on' or 'off'
+            } else if (commandType === 'manualOverride') {
+                // [MANUAL OVERRIDE] value is 1 (manual) or 0 (auto) — pass directly
+                payload.value = value;
             } else if (commandType === 'temperature') {
                 if (isNaN(value)) return;
 
                 // [VALIDATION] Enforce 5-30°C range and provide UI feedback
                 if (value > 30) {
-                    value = 30; // Force to maximum allowed
+                    value = 30;
                     document.getElementById('target-temp-input').value = 30;
                     if (errorSpan) errorSpan.innerText = "Temperature above 30°C not allowed";
                 } else if (value < 5) {
-                    value = 5; // Force to minimum allowed
+                    value = 5;
                     document.getElementById('target-temp-input').value = 5;
                     if (errorSpan) errorSpan.innerText = "Temperature below 5°C not allowed";
                 } else if (errorSpan) {
-                    errorSpan.innerText = ""; // Clear message if valid
+                    errorSpan.innerText = "";
                 }
 
-                // Automatically clear error message after 3 seconds for better UX
                 if (errorSpan && errorSpan.innerText !== "") {
                     setTimeout(() => { errorSpan.innerText = ""; }, 3000);
+                }
+
+                payload.value = value;
+            } else if (commandType === 'heaterSetPoint') {
+                if (isNaN(value)) return;
+                const spError = document.getElementById('setpoint-error');
+
+                // [VALIDATION] Enforce 40-70°C range for boiler water setpoint
+                if (value > 70) {
+                    value = 70;
+                    document.getElementById('heater-setpoint-input').value = 70;
+                    if (spError) spError.innerText = "Setpoint above 70°C not allowed";
+                } else if (value < 40) {
+                    value = 40;
+                    document.getElementById('heater-setpoint-input').value = 40;
+                    if (spError) spError.innerText = "Setpoint below 40°C not allowed";
+                } else if (spError) {
+                    spError.innerText = "";
+                }
+
+                if (spError && spError.innerText !== "") {
+                    setTimeout(() => { spError.innerText = ""; }, 3000);
                 }
 
                 payload.value = value;

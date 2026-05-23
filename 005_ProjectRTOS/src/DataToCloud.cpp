@@ -104,7 +104,8 @@ void sendBoilerData() {
     JsonDocument doc;
     doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
     doc["waterpumpactivation"] = g_WaterPumpSpeed;
-    doc["waterTemperature"] = g_waterAdc;
+    // [BOILER MODEL] Simulated boiler water temperature — real sensor to replace this in a future release
+    doc["boilerWaterTemp"] = g_boilerWaterTemp;
     doc["thermistorTempC"] = g_thermistorTempC;
     doc["dhtTempC"] = g_dhtTempC;
     doc["dhtHumidity"] = g_dhtHumidity;
@@ -114,12 +115,16 @@ void sendBoilerData() {
     // [2-WAY COMMUNICATION] Include heater state and target Home in the outgoing status JSON
     doc["heaterState"] = heaterState;
     doc["targetHomeTemp"] = targetHomeTemp;
+    doc["heaterTempSetPoint"] = heaterTempSetPoint; // [HEATER SETPOINT] Boiler water target temperature
+    doc["manualOverride"] = manualOverride;         // [MANUAL OVERRIDE] true = manual, false = automatic
     
-    // We set the 'retained' flag to true. HiveMQ will now store this message
-    // and give it to the server immediately when it connects/restarts.
-    mqttClient.beginMessage(statusTopic, true);
-    serializeJson(doc, mqttClient);
-    mqttClient.endMessage(); // This is the moment the "Handoff" happens
+    // Serialize to String first so ArduinoMqttClient knows the exact payload size.
+    // Without this, the library defaults to a 256-byte buffer and truncates larger JSON.
+    String payload;
+    serializeJson(doc, payload);
+    mqttClient.beginMessage(statusTopic, payload.length(), true);
+    mqttClient.print(payload);
+    mqttClient.endMessage();
     D_PRINTLN(" + Data Sent To HIVE");
 }
 
@@ -141,11 +146,13 @@ void onMqttMessageReceived(int messageSize) {
 
     const char* command = doc["command"];
     if (command && strcmp(command, "heater") == 0) {
-        const char* action = doc["action"];
-        heaterState = (strcmp(action, "on") == 0);
-        Serial.print("Heater is now: "); Serial.println(heaterState ? "ON" : "OFF");
-        // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
-        sendBoilerData(); 
+        // [MANUAL OVERRIDE] Only apply ON/OFF command when manual override is active
+        if (manualOverride) {
+            const char* action = doc["action"];
+            heaterState = (strcmp(action, "on") == 0);
+            Serial.print("Heater is now: "); Serial.println(heaterState ? "ON" : "OFF");
+            sendBoilerData();
+        }
     } else if (command && strcmp(command, "temperature") == 0) {
         float value = doc["value"];
 
@@ -156,6 +163,19 @@ void onMqttMessageReceived(int messageSize) {
         targetHomeTemp = value;
         Serial.print("New Target Home: "); Serial.println(targetHomeTemp);
         // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
+        sendBoilerData();
+    } else if (command && strcmp(command, "manualOverride") == 0) {
+        // [MANUAL OVERRIDE] 1 = manual UI control, 0 = automatic thermostat logic
+        manualOverride = (doc["value"] == 1);
+        Serial.print(F("Manual Override: ")); Serial.println(manualOverride ? "ON" : "OFF");
+        sendBoilerData();
+    } else if (command && strcmp(command, "heaterSetPoint") == 0) {
+        // [HEATER SETPOINT] Boiler water target temperature sent from UI (40–70°C range enforced here)
+        float value = doc["value"];
+        if (value < 40.0f) value = 40.0f;
+        if (value > 70.0f) value = 70.0f;
+        heaterTempSetPoint = value;
+        Serial.print(F("Heater SetPoint: ")); Serial.println(heaterTempSetPoint);
         sendBoilerData();
     } else if (command && strcmp(command, "weather") == 0) {
         // [WEATHER] Node.js fetched real outdoor data from Open-Meteo (Neirivue coordinates)
@@ -252,7 +272,10 @@ bool initializeCloud() {
             // ----------------------------
 
             mqttClient.subscribe(commandTopic);
-            return true; 
+            // [WEATHER] Subscribe to the dedicated retained weather topic so the Arduino
+            // always receives the latest outdoor data immediately on connect.
+            mqttClient.subscribe("boilers/B1/weather");
+            return true;
         }
         attempts++;
         delay(1000);
