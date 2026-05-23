@@ -41,7 +41,11 @@ volatile float targetHomeTemp = 20.0f;
 // [SIMULATION] Thermal model variables
 volatile float g_boilerWaterTemp = 20.0f; // Simulated boiler water temperature (°C)
 volatile float g_homeTemp        = 20.0f; // Simulated home air temperature (°C)
-volatile float g_outdoorTemp     = 10.0f; // Outdoor temperature received from server via MQTT (°C)
+volatile float g_outdoorTemp     = 10.0f; // Startup default — overwritten by real Open-Meteo data via MQTT "weather" command
+
+// [WEATHER] Flag set to true when Node.js has pushed real outdoor weather data via MQTT.
+// While true, the DHT task skips its physical sensor read so cloud values are not overwritten.
+volatile bool g_useCloudWeather = false;
 
 // Your setup() and RTOS tasks remain here...
 

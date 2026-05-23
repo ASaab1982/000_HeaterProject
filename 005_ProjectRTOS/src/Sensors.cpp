@@ -33,8 +33,16 @@ void doThermistorRead() {
 }
 
 void doDHTRead() {
+    // [WEATHER] If Node.js has already pushed real outdoor data from Open-Meteo,
+    // skip the physical DHT read so it doesn't overwrite g_dhtTempC / g_dhtHumidity.
+    // We still mark the health bit so the watchdog doesn't flag this task as dead.
+    if (g_useCloudWeather) {
+        systemHealth |= (1 << 3);
+        return;
+    }
+
     // No more vTaskDelay here!
-    
+
     // Read the values immediately
     float h = dht.readHumidity();
     float t = dht.readTemperature();

@@ -156,7 +156,21 @@ void onMqttMessageReceived(int messageSize) {
         targetHomeTemp = value;
         Serial.print("New Target Home: "); Serial.println(targetHomeTemp);
         // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
-        sendBoilerData(); 
+        sendBoilerData();
+    } else if (command && strcmp(command, "weather") == 0) {
+        // [WEATHER] Node.js fetched real outdoor data from Open-Meteo (Neirivue coordinates)
+        // and sent it here. We overwrite g_dhtTempC and g_dhtHumidity so the UI shows
+        // real outdoor conditions instead of the physical DHT sensor inside the enclosure.
+        // g_useCloudWeather = true tells Sensors.cpp to stop overwriting these with raw DHT reads.
+        // g_outdoorTemp gets the same value so the boiler simulation in Heater.cpp
+        // will use real outdoor temperature once that physics is implemented.
+        g_dhtTempC    = doc["outdoorTemp"];
+        g_dhtHumidity = doc["outdoorHumidity"];
+        g_outdoorTemp = doc["outdoorTemp"];
+        g_useCloudWeather = true;
+        Serial.print(F("[WEATHER] Outdoor: ")); Serial.print(g_dhtTempC);
+        Serial.print(F("C, ")); Serial.print(g_dhtHumidity); Serial.println(F("%"));
+        sendBoilerData();
     }
 }
 

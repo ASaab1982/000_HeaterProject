@@ -55,6 +55,10 @@ extern volatile float targetHomeTemp;
 extern volatile float g_boilerWaterTemp; // Simulated boiler water temperature (°C)
 extern volatile float g_homeTemp;        // Simulated home air temperature (°C)
 extern volatile float g_outdoorTemp;     // Outdoor temperature - fixed default, update later via MQTT (°C)
+
+// [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
+// Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
+extern volatile bool g_useCloudWeather;
 extern TaskHandle_t hHeater, hWaterPump, hWaterValve, hTherm, hDHT, hWater,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud;

@@ -11,6 +11,36 @@ const io = new Server(server);
 
 const boilerStates = {}; // Cache the latest data for each boiler to persist across UI refreshes
 
+// [WEATHER] Coordinates for Neirivue, Canton de Fribourg, Switzerland
+const WEATHER_LAT = 46.52769;
+const WEATHER_LON = 7.06050;
+// [WEATHER] Prevents stacking multiple intervals if MQTT reconnects
+let weatherInterval = null;
+
+// [WEATHER] Fetches current outdoor temperature and humidity from Open-Meteo (free, no API key)
+// and publishes them to the Arduino via the existing MQTT commands topic.
+// The Arduino will use these values to replace its physical DHT sensor readings.
+async function fetchWeatherData() {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,relative_humidity_2m`;
+        const response = await fetch(url);
+        const json = await response.json();
+        const temp = json.current.temperature_2m;
+        const humidity = json.current.relative_humidity_2m;
+
+        const payload = JSON.stringify({ command: 'weather', outdoorTemp: temp, outdoorHumidity: humidity });
+        client.publish('boilers/B1/commands', payload, { qos: 0, retain: false }, (error) => {
+            if (error) {
+                console.error('❌ [WEATHER] Failed to publish weather data:', error);
+            } else {
+                console.log(`🌤️  [WEATHER] Neirivue: ${temp}°C, ${humidity}% humidity → sent to Arduino`);
+            }
+        });
+    } catch (err) {
+        console.error('❌ [WEATHER] Failed to fetch from Open-Meteo:', err.message);
+    }
+}
+
 // Serves the HTML/CSS/JS files from the 'public' folder to the browser
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -87,6 +117,12 @@ client.on('connect', () => {
     console.log('✅ Connected to HiveMQ');
     client.subscribe('boilers/B1/#');
     io.emit('bridgeStatus', { status: 'connected' });
+    // [WEATHER] Fetch immediately on connect so Arduino has outdoor data right away,
+    // then refresh every 10 minutes (outdoor temp doesn't change faster than that)
+    fetchWeatherData();
+    if (!weatherInterval) {
+        weatherInterval = setInterval(fetchWeatherData, 10 * 60 * 1000);
+    }
 });
 
 // --- MQTT: BRIDGE WENT OFFLINE ---
