@@ -42,7 +42,7 @@ extern MqttClient  mqttClient;
 extern float dht_h, dht_t;
 extern volatile int g_WaterPumpSpeed;
 extern volatile int g_waterAdc;
-extern volatile float g_thermistorTempC;
+extern volatile float g_houseTempC;
 extern volatile float g_dhtTempC;
 extern volatile float g_dhtHumidity;
 extern volatile float g_heaterPosition;
@@ -63,7 +63,7 @@ extern volatile float heaterTempSetPoint;   // Boiler water target temperature (
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
 extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterPump, hWaterValve, hTherm, hDHT, hWater,
+extern TaskHandle_t hHeater, hWaterPump, hWaterValve, hHouseTemp, hDHT, hWater,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud;
 // --- Function declaration ---

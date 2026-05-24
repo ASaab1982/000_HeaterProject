@@ -3,12 +3,12 @@
 #include "Sensors.h"
 
 
- void TaskThermistor(void* pv) {
+ void TaskHouseTemp(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
-    doThermistorRead();  }
+    D_PRINT(millis());
+    doHouseTempRead();  }
 }
 
  void TaskDHT(void* pv) {
@@ -21,13 +21,13 @@
 }
 
 
-void doThermistorRead() {
+void doHouseTempRead() {
     int16_t adcVal = analogRead(tempPin);
     int16_t tempC10 = map(adcVal, 350, 650, 450, 150); // wer are not using the log funcion to reduce RAM size
-    D_PRINT(F(" :  Temp Thermistor : "));
+    D_PRINT(F(" :  Temp House : "));
     D_PRINT(tempC10 / 10); D_PRINT(F("."));
     D_PRINT(tempC10 % 10); D_PRINTLN(F(" C"));
-    g_thermistorTempC = tempC10 / 10.0f;
+    g_houseTempC = tempC10 / 10.0f;
       systemHealth |= (1 << 2); // Health bit for mic read is OK
 
 }

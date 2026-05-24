@@ -28,7 +28,7 @@ const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
  //WiFiClient client; // Or WiFiClient client; depending on your setup
 volatile int g_WaterPumpSpeed = 0;
 volatile int g_waterAdc = 0;
-volatile float g_thermistorTempC = 0.0f;
+volatile float g_houseTempC = 0.0f;
 volatile float g_dhtTempC = 0.0f;
 volatile float g_dhtHumidity = 0.0f;
 volatile float g_heaterPosition = 0.0f;
@@ -59,7 +59,7 @@ volatile bool g_useCloudWeather = false;
  TaskHandle_t hHeater     = nullptr;
  TaskHandle_t hWaterPump  = nullptr;
  TaskHandle_t hWaterValve = nullptr;
- TaskHandle_t hTherm     = nullptr;
+ TaskHandle_t hHouseTemp  = nullptr;
  TaskHandle_t hDHT       = nullptr;
  TaskHandle_t hWater     = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
@@ -71,7 +71,7 @@ volatile bool g_useCloudWeather = false;
 // --- Task Prototypes ---
 void TaskWaterPump(void* pv);
 void TaskWaterValve(void* pv);
-void TaskThermistor(void* pv);
+void TaskHouseTemp(void* pv);
 void TaskDHT(void* pv);
 void TaskWater(void* pv);
 void TaskMonitor(void* pv);
@@ -128,8 +128,8 @@ void setup() {
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterValve create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskThermistor,"TaskTherm",    90, nullptr, 1, &hTherm);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskTherm create failed")); for(;;){} }
+  ok = xTaskCreate(TaskHouseTemp,"TaskHouseTemp", 90, nullptr, 1, &hHouseTemp);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHouseTemp create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskDHT,       "TaskDHT",       170, nullptr, 1, &hDHT);

@@ -3,9 +3,9 @@
 
 #include "ProjectHeater.h"
 
-void doThermistorRead();
+void doHouseTempRead();
 void doDHTRead();
-void TaskThermistor(void* pv);
+void TaskHouseTemp(void* pv);
 void TaskDHT(void* pv);
 
 #endif

@@ -77,7 +77,7 @@
                 <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">📡 Sensors</td></tr>
                 <tr><td>DHT Temperature</td><td class="val"><span id="dhtTempC">--</span> °C</td></tr>
                 <tr><td>DHT Humidity</td><td class="val"><span id="dhtHumidity">--</span> %</td></tr>
-                <tr><td>Thermistor Temp</td><td class="val"><span id="thermistorTempC">--</span> °C</td></tr>
+                <tr><td>House Temp</td><td class="val"><span id="houseTempC">--</span> °C</td></tr>
                 <tr><td>Boiler Water Temp</td><td class="val"><span id="boilerWaterTemp">--</span> °C</td></tr>
 
                 <!-- ACTUATORS -->
@@ -213,7 +213,7 @@
             document.getElementById('boiler-id-display').innerText = data.deviceId || 'Unknown';
             document.getElementById('dhtTempC').innerText = data.dhtTempC ?? '--';
             document.getElementById('dhtHumidity').innerText = data.dhtHumidity ?? '--';
-            document.getElementById('thermistorTempC').innerText = data.thermistorTempC ?? '--';
+            document.getElementById('houseTempC').innerText = data.houseTempC ?? '--';
             document.getElementById('waterpumpactivation').innerText = data.waterpumpactivation === 100 ? 'ON' : 'OFF';
             document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
             document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';

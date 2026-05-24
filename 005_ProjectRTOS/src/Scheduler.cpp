@@ -20,7 +20,7 @@ void TaskTimeScheduler(void* pv) {
     if (hWaterValve)  xTaskNotifyGive(hWaterValve);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hTherm)       xTaskNotifyGive(hTherm);
+    if (hHouseTemp)   xTaskNotifyGive(hHouseTemp);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hDHT)         xTaskNotifyGive(hDHT);
