@@ -1,3 +1,21 @@
+/*
+ * DataToCloud.cpp — WiFi / MQTT cloud communication
+ *
+ * This file manages the full lifecycle of the Arduino's connection to the HiveMQ broker
+ * over TLS (port 8883).  It handles:
+ *   - WiFi connection with automatic fallback to a second SSID
+ *   - NTP time synchronisation via the RTC
+ *   - MQTT connection with Last Will and Testament so the UI detects unexpected drops
+ *   - Periodic telemetry: all sensor readings, simulation state, and control variables
+ *     are serialised to JSON and published to boilers/B1/status every 15 seconds
+ *   - Incoming command parsing: heater on/off, target home temperature, manual override
+ *     toggle, boiler setpoint, and real outdoor weather data from Open-Meteo via Node.js
+ *   - Offline watchdog: if the MQTT connection is lost for 10 minutes the system resets
+ *     via NVIC_SystemReset() to attempt automatic recovery
+ *
+ * TaskCloud wakes every 500 ms to call mqttClient.poll() (keepalive + receive).
+ * It is notified by TaskTimeScheduler every 15 s to trigger a telemetry publish.
+ */
 
 #include "ProjectHeater.h" // To access your D_PRINT macros
 
@@ -13,6 +31,11 @@ bool simulationPortActive = false;
 bool initializeCloud();
 // enf of simulation a prameter 
 
+// FreeRTOS task — manages the MQTT connection and periodic telemetry.
+// Calls initializeCloud() once on startup, then loops every 500 ms calling mqttClient.poll()
+// for keepalive and message reception.  When notified by TaskTimeScheduler (every 15 s)
+// it also calls sendHeaterData() to push a full status JSON to the broker.
+// If the connection is lost it starts a 10-minute countdown before triggering a system reset.
 void TaskCloud(void *pvParameters) {
 
     static bool alertSent = false;
@@ -69,7 +92,7 @@ void TaskCloud(void *pvParameters) {
             
             if (offlineDuration >= REBOOT_THRESHOLD) {
                 Serial.println(F("\n[!!!] 10 MINUTES OFFLINE. Restarting system for recovery..."));
-                delay(1000); // Give Serial time to print
+                vTaskDelay(pdMS_TO_TICKS(1000));
                 
                 // TRIGGER HARDWARE RESET (Arduino R4 specific)
                 NVIC_SystemReset(); 
@@ -100,6 +123,9 @@ void TaskCloud(void *pvParameters) {
 }
 
 
+// Serialises all current system state into a JSON payload and publishes it to the
+// status topic as a retained message.  Includes sensor readings, simulation temperatures,
+// valve/pump positions, heater state, setpoints, manual override flag, and system health.
 void sendHeaterData() {
     JsonDocument doc;
     doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
@@ -128,7 +154,15 @@ void sendHeaterData() {
     D_PRINTLN(" + Data Sent To HIVE");
 }
 
-// [2-WAY COMMUNICATION] Message Callback: Parses incoming JSON commands and updates local variables
+// MQTT message callback registered with mqttClient.onMessage().
+// Parses the incoming JSON command and updates the corresponding global variable:
+//   "heater"        — turns heater ON/OFF (only when manualOverride is active)
+//   "temperature"   — sets targetHomeTemp, clamped to 5–30 °C
+//   "manualOverride"— switches between manual UI control and automatic thermostat logic
+//   "heaterSetPoint"— sets boiler water target temperature, clamped to 40–70 °C
+//   "weather"       — receives real outdoor temperature and humidity from Open-Meteo
+//                     via the Node.js bridge; sets g_useCloudWeather to stop DHT overwrites
+// Sends an immediate sendHeaterData() after each change so the UI reflects the new state.
 void onMqttMessageReceived(int messageSize) {
     // Read the message into a string or buffer
     String message = "";
@@ -194,6 +228,11 @@ void onMqttMessageReceived(int messageSize) {
     }
 }
 
+// Performs the full cloud initialisation sequence: WiFi (with SSID fallback), IP check,
+// NTP time sync, MQTT credentials, Last Will and Testament, and HiveMQ connection with
+// up to 10 retry attempts.  WDT.refresh() is called at each long blocking phase so the
+// hardware watchdog does not fire during the expected multi-second initialisation time.
+// Returns true on successful MQTT connection, false if all attempts fail.
 bool initializeCloud() {
     // [2-WAY COMMUNICATION] Registration
     mqttClient.onMessage(onMqttMessageReceived);
@@ -205,7 +244,7 @@ bool initializeCloud() {
 
     unsigned long wifiTimer = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
-        delay(500);
+        vTaskDelay(pdMS_TO_TICKS(500));
         Serial.print(".");
     }
 
@@ -213,12 +252,12 @@ bool initializeCloud() {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println(F("\n[WIFI] Trying SSID 2..."));
         WiFi.disconnect();
-        delay(1000); 
+        vTaskDelay(pdMS_TO_TICKS(1000));
         WiFi.begin(SECRET_SSID2, SECRET_PASS2);
 
         wifiTimer = millis();
         while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimer < 5000)) {
-            delay(500);
+            vTaskDelay(pdMS_TO_TICKS(500));
             Serial.print(".");
         }
     }
@@ -226,7 +265,7 @@ bool initializeCloud() {
     // 3. IP Verification
     int ipTimeout = 0;
     while (WiFi.localIP() == IPAddress(0, 0, 0, 0) && ipTimeout < 10) {
-        delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
         ipTimeout++;
     }
 
@@ -234,6 +273,8 @@ bool initializeCloud() {
         Serial.println(F("\n[ERROR] No IP obtained."));
         return false; 
     }
+
+    WDT.refresh(); // WiFi phase done — kick before blocking NTP + MQTT
 
     // 4. Sync Time (NTP)
     RTC.begin();
@@ -258,6 +299,7 @@ bool initializeCloud() {
     // 6. HiveMQ Connection Loop
     int attempts = 0;
     while (attempts < 10) {
+        WDT.refresh(); // Kick before each blocking TLS handshake
         Serial.print(F("HiveMQ Attempt #"));
         Serial.println(attempts + 1);
         
@@ -275,10 +317,11 @@ bool initializeCloud() {
             // [WEATHER] Subscribe to the dedicated retained weather topic so the Arduino
             // always receives the latest outdoor data immediately on connect.
             mqttClient.subscribe("boilers/B1/weather");
+            WDT.refresh(); // Init fully complete — normal WDT cycle takes over
             return true;
         }
         attempts++;
-        delay(1000);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     return false;

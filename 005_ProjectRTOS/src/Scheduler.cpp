@@ -1,6 +1,29 @@
+/*
+ * Scheduler.cpp — Master task scheduler
+ *
+ * TaskTimeScheduler is the heartbeat of the system.  It runs at the highest task priority
+ * (priority 3) and sequentially notifies every other task at a fixed 250 ms cadence using
+ * xTaskNotifyGive().  Each task wakes only when notified, performs its work, then blocks
+ * again — this prevents busy-waiting and keeps CPU usage minimal.
+ *
+ * Notification order and timing (each slot = 250 ms):
+ *   Slot 1 — TaskHeater
+ *   Slot 2 — TaskWaterActuator
+ *   Slot 3 — TaskHeaterTemp
+ *   Slot 4 — TaskHomeTemp
+ *   Slot 5 — TaskDHT
+ *   Slot 6 — TaskCloud (only every 15 s, not every cycle)
+ *   Slot 7 — TaskMonitor (heap stats)
+ *   Slot 8 — TaskwatchdogMonitor
+ *
+ * One full round takes 8 × 250 ms = 2 seconds.
+ * Cloud telemetry is sent every 15 seconds (every ~7–8 full rounds).
+ */
 
 #include "ProjectHeater.h" // For D_PRINTLN
 
+// FreeRTOS task — runs continuously at priority 3, notifying all other tasks in sequence.
+// vTaskDelayUntil keeps the 250 ms rhythm accurate even if a notification takes non-zero time.
 void TaskTimeScheduler(void* pv) {
   (void)pv;
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -31,7 +54,6 @@ void TaskTimeScheduler(void* pv) {
     if (hTaskCloud && (xTaskGetTickCount() - xLastCloudTime >= xCloudInterval)) {
         xTaskNotifyGive(hTaskCloud); 
         xLastCloudTime = xTaskGetTickCount(); // Reset the timer
-        D_PRINTLN(F("☁️ Cloud Update Triggered"));
     }
     // We still delay here to keep the 250ms "rhythm" for the other tasks
     vTaskDelayUntil(&xLastWakeTime, xInterval);
@@ -42,6 +64,5 @@ void TaskTimeScheduler(void* pv) {
     if (hWatchdog)    xTaskNotifyGive(hWatchdog);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    D_PRINTLN(F("--- Cycle Complete ---"));
   }
 }

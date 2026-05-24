@@ -1,77 +1,87 @@
+/*
+ * Sensors.cpp — FreeRTOS sensor tasks and simulation model dispatchers
+ *
+ * This file contains three FreeRTOS tasks, each woken by a notification from
+ * TaskTimeScheduler every 250 ms × their slot offset:
+ *
+ *   TaskHomeTemp   — advances the home air temperature simulation (HomeTempModel)
+ *   TaskHeaterTemp — advances the boiler water temperature simulation (HeaterModel)
+ *   TaskDHT        — reads the physical DHT11 sensor for ambient humidity and temperature;
+ *                    skipped when g_useCloudWeather is true (real Open-Meteo data in use)
+ *
+ * Each task sets its corresponding bit in systemHealth after completing its work so the
+ * watchdog knows it ran successfully this cycle.
+ *
+ * Health bit assignments:
+ *   bit 1 — HomeTemp  (1 << 1)
+ *   bit 2 — HeaterTemp (1 << 2)
+ *   bit 3 — DHT       (1 << 3)
+ */
 
 #include "ProjectHeater.h"
 #include "Sensors.h"
 
 
- void TaskHomeTemp(void* pv) {
+// FreeRTOS task — waits for a scheduler notification then calls doHomeTempRead().
+void TaskHomeTemp(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis());
-    doHomeTempRead();  }
+    doHomeTempRead();
+  }
 }
 
-
- void TaskHeaterTemp(void* pv) {
+// FreeRTOS task — waits for a scheduler notification then calls doHeaterTempRead().
+void TaskHeaterTemp(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis());
-    doHeaterTempRead();  }
+    doHeaterTempRead();
+  }
 }
 
- void TaskDHT(void* pv) {
+// FreeRTOS task — waits for a scheduler notification then calls doDHTRead().
+void TaskDHT(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    D_PRINT(millis()); // Show exactly when this happened
     doDHTRead();
   }
 }
 
+// Advances the boiler water temperature simulation by one time step and sets health bit 2.
 void doHeaterTempRead() {
     updateHeaterModel();
-    D_PRINT(F(" : Heater Temp:")); D_PRINTLN(g_heaterWaterTemp);
     systemHealth |= (1 << 2);
 }
 
+// Advances the home air temperature simulation by one time step and sets health bit 1.
 void doHomeTempRead() {
     updateHomeTempModel();
-    D_PRINT(F(" : Home Temp: ")); D_PRINTLN(g_homeTemp);
     systemHealth |= (1 << 1);
 }
 
+// Reads humidity and temperature from the physical DHT11 sensor and stores results in
+// g_dhtHumidity and g_dhtTempC.  If the read returns NaN (sensor error) both values are
+// set to 100 as an out-of-range sentinel.  Skipped entirely when g_useCloudWeather is true
+// so real Open-Meteo data pushed via MQTT is not overwritten.  Sets health bit 3.
 void doDHTRead() {
     // [WEATHER] If Node.js has already pushed real outdoor data from Open-Meteo,
     // skip the physical DHT read so it doesn't overwrite g_dhtTempC / g_dhtHumidity.
-    // We still mark the health bit so the watchdog doesn't flag this task as dead.
     if (g_useCloudWeather) {
         systemHealth |= (1 << 3);
         return;
     }
 
-    // No more vTaskDelay here!
-
-    // Read the values immediately
     float h = dht.readHumidity();
     float t = dht.readTemperature();
 
     if (isnan(h) || isnan(t)) {
-        D_PRINT(F("   : Error: DHT sensor failed!   "));
-        g_dhtHumidity = 100; // Update global variables
+        g_dhtHumidity = 100;
         g_dhtTempC = 100;
-        D_PRINT(F(" DHT Hum Sensor: ")); D_PRINT(g_dhtHumidity);
-        D_PRINT(F("%, DHT Temp Sensor: ")); D_PRINT(g_dhtTempC);
-        D_PRINTLN(F("C"));
-
     } else {
-        g_dhtHumidity = h; // Update global variables
+        g_dhtHumidity = h;
         g_dhtTempC = t;
-        D_PRINT(F(" :  DHT Hum Sensor: ")); D_PRINT(g_dhtHumidity);
-        D_PRINT(F("%, DHT Temp Sensor: ")); D_PRINT(g_dhtTempC);
-        D_PRINTLN(F("C"));
     }
-    // The task will now finish in milliseconds and wait 10s for the next signal
-    systemHealth |= (1 << 3); // Health bit for mic read is OK
-
+    systemHealth |= (1 << 3);
 }

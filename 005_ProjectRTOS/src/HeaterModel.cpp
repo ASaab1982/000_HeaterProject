@@ -1,3 +1,20 @@
+/*
+ * HeaterModel.cpp — Boiler water temperature simulation
+ *
+ * Simulates the thermal behaviour of the boiler water loop (g_heaterWaterTemp) over time.
+ * Called every 250 ms by TaskHeaterTemp via doHeaterTempRead().
+ *
+ * Heater ON:  water rises at a fixed 1 °C / 20 s regardless of outdoor temperature,
+ *             capped at HEATER_MAX_TEMP (90 °C).
+ *
+ * Heater OFF: water cools at a rate linearly interpolated between:
+ *               −5 °C outdoor → 1 °C / 10 min  (fastest loss, cold environment)
+ *               +30 °C outdoor → 1 °C / 20 min  (slowest loss, warm environment)
+ *             The boiler water temperature cannot drop below g_outdoorTemp.
+ *
+ * This model will be replaced by a real boiler water temperature sensor in a future release.
+ */
+
 #include "ProjectHeater.h"
 #include "HeaterModel.h"
 
@@ -17,6 +34,9 @@ static const float OUTDOOR_WARM   =  30.0f;
 static const float RATE_AT_COLD   = 1.0f / 600.0f;  // °C/s at -5°C  (1°C per 10 min)
 static const float RATE_AT_WARM   = 1.0f / 1200.0f; // °C/s at 30°C  (1°C per 20 min)
 
+// Advances g_heaterWaterTemp by one real-time step.
+// Uses the elapsed time since the last call (milliseconds) to compute the temperature delta.
+// First call only initialises the timer and returns without changing any temperature.
 void updateHeaterModel() {
     static unsigned long lastCallMs = 0;
 

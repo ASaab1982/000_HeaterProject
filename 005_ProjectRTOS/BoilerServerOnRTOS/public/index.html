@@ -224,8 +224,8 @@
             document.getElementById('manualOverride').innerText = data.manualOverride ? "MANUAL" : "AUTO";
             document.getElementById('targetHomeTemp').innerText = data.targetHomeTemp ?? '--';
             document.getElementById('heaterTempSetPoint').innerText = data.heaterTempSetPoint ?? '--';
-            const healthHex = "0x" + Number(data.systemHealth || 0).toString(16).toUpperCase();
-            document.getElementById('systemHealth').innerText = healthHex;
+            const healthBin = Number(data.systemHealth || 0).toString(2).padStart(8, '0');
+            document.getElementById('systemHealth').innerText = healthBin;
 
             // Add a timestamp
             const now = new Date();

@@ -1,5 +1,29 @@
+/*
+ * HomeTempModel.cpp — Home air temperature simulation
+ *
+ * Simulates the thermal behaviour of the home air temperature (g_homeTemp) over time.
+ * Called every 250 ms by TaskHomeTemp via doHomeTempRead().
+ *
+ * Two simultaneous heat exchanges are applied each step:
+ *
+ *   Heat gain from boiler (only when pump is running, g_WaterPumpSpeed > 0):
+ *     Proportional to (g_heaterWaterTemp − g_homeTemp) × gainFactor
+ *     where gainFactor scales linearly with valve position (0° = 10%, 180° = 100%)
+ *     Rate constant HEAT_GAIN_RATE = 1 / 900  (home reaches boiler temp in ~15 min fully open)
+ *
+ *   Heat exchange with outdoors (Newton's law of cooling — bidirectional):
+ *     Proportional to (g_homeTemp − g_outdoorTemp)
+ *     Rate constant HEAT_LOSS_RATE = 1 / 86400  (home equilibrates with outdoors in ~24 h)
+ *     Positive value = home loses heat; negative value = home gains heat from outdoors.
+ *
+ * Constants HEAT_GAIN_RATE and HEAT_LOSS_RATE are defined in HomeTempModel.h and shared
+ * with WaterActuator.cpp for the equilibrium valve position calculation.
+ */
+
 #include "HomeTempModel.h"
 
+// Advances g_homeTemp by one real-time step, applying boiler heat gain and outdoor exchange.
+// First call only initialises the timer and returns without changing any temperature.
 void updateHomeTempModel() {
     static unsigned long lastCallMs = 0;
 

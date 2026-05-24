@@ -1,32 +1,61 @@
+/*
+ * WaterActuator.cpp — Water pump and servo valve control
+ *
+ * This file drives the H-bridge water pump (in1Pin / in2Pin / enablePin) and the servo
+ * valve (servoPin) to regulate home air temperature towards targetHomeTemp.
+ *
+ * Control strategy — 3-zone logic with ±0.5 °C deadband and 0.2 °C hysteresis:
+ *
+ *   Zone 1 (too cold) : home temp < target − 0.6 °C
+ *       → pump ON at full speed, valve fully open (180°)
+ *
+ *   Zone 2 (equilibrium) : target − 0.4 °C ≤ home temp ≤ target + 0.4 °C
+ *       → pump ON, valve at the position where heat gain from boiler equals heat loss
+ *          to outdoors (derived from HomeTempModel constants HEAT_GAIN_RATE / HEAT_LOSS_RATE)
+ *
+ *   Zone 3 (too warm) : home temp > target + 0.6 °C
+ *       → pump OFF, valve fully closed (0°)
+ *
+ * Hysteresis prevents rapid zone bouncing at the boundaries.
+ *
+ * Health bits: bit 0 (pump, set inside driveWaterPump) and bit 5 (valve, set in
+ * doWaterActuatorSequence) must both be set for the watchdog to consider this task healthy.
+ */
+
 #include "WaterActuator.h"
 
+// FreeRTOS task — waits for a scheduler notification then calls doWaterActuatorSequence().
 void TaskWaterActuator(void* pv) {
     (void)pv;
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         doWaterActuatorSequence();
-        D_PRINT(millis());
-        D_PRINTLN(F(" : WaterActuator cycle"));
     }
 }
 
+// Drives the H-bridge motor controller to run or stop the water pump.
+// spd > 0 → pump ON at full speed (analogWrite 255), IN1 HIGH / IN2 LOW.
+// spd == 0 → pump OFF, both IN pins LOW, enable 0.
+// Updates g_WaterPumpSpeed (100 = running, 0 = stopped) and sets health bit 0.
 void driveWaterPump(bool dir, int spd) {
     if (spd > 0) {
         digitalWrite(in1Pin, HIGH);
         digitalWrite(in2Pin, LOW);
         analogWrite(enablePin, 255);
         g_WaterPumpSpeed = 100;
-        D_PRINTLN(F(" : WaterPump ON"));
     } else {
         digitalWrite(in1Pin, LOW);
         digitalWrite(in2Pin, LOW);
         analogWrite(enablePin, 0);
         g_WaterPumpSpeed = 0;
-        D_PRINTLN(F(" : WaterPump OFF"));
     }
     systemHealth |= (1 << 0);
 }
 
+// Evaluates current home temperature against targetHomeTemp and selects the appropriate
+// zone, then sets pump speed and valve position accordingly.  Zone transitions use
+// hysteresis to avoid rapid switching at boundaries.  In equilibrium (zone 2) the valve
+// angle is computed analytically so heat gain exactly offsets heat loss to outdoors.
 void controlHomeTemp() {
     static int currentZone = 2;  // start in equilibrium zone
 
@@ -76,6 +105,7 @@ void controlHomeTemp() {
     }
 }
 
+// Called each cycle by TaskWaterActuator: runs controlHomeTemp() then sets health bit 5.
 void doWaterActuatorSequence() {
     controlHomeTemp();
     systemHealth |= (1 << 5);

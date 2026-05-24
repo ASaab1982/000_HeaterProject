@@ -1,23 +1,34 @@
+/*
+ * Heater.cpp — Heater relay control and automatic thermostat logic
+ *
+ * This file controls the physical heater relay (HeaterPin) and implements the automatic
+ * thermostat that decides whether the heater should be ON or OFF based on boiler water
+ * temperature vs. the user-defined setpoint.
+ *
+ * Two operating modes:
+ *   Manual override ON  — heaterState is set directly from the UI via MQTT command;
+ *                         the relay simply follows that value each cycle.
+ *   Manual override OFF — automatic mode: heater turns ON when boiler water drops below
+ *                         heaterTempSetPoint and turns OFF when it exceeds setpoint + 5 °C
+ *                         (5 °C hysteresis to prevent rapid cycling).
+ *
+ * Health bit: bit 4 (1 << 4) is set each cycle so the watchdog knows this task ran.
+ */
+
 #include "Heater.h"
 
-// --- TaskHeater ---
-// Waits for a notification from the scheduler every 250ms.
-// Controls the heater relay based on the global heaterState variable.
+// FreeRTOS task — waits for a scheduler notification then calls doHeaterSequence().
 void TaskHeater(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     doHeaterSequence();
-    D_PRINT(millis());
-    D_PRINT(F(" : Heater relay -> "));
-    D_PRINTLN(heaterState ? F("ON") : F("OFF"));
   }
 }
 
-// --- doHeaterSequence ---
-// Controls outPorts[0] (pin 11) as a relay:
-// heaterState = true  → pin HIGH → relay ON  → heater running
-// heaterState = false → pin LOW  → relay OFF → heater stopped
+// Drives the heater relay pin to match heaterState, then (if not in manual override)
+// recalculates heaterState from boiler water temperature vs. setpoint with 5 °C hysteresis.
+// Sets health bit 4 to signal a successful cycle to the watchdog.
 void doHeaterSequence() {
   if (heaterState) {
     digitalWrite(HeaterPin, HIGH);

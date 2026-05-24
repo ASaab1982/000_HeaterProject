@@ -1,5 +1,26 @@
 // #define INCLUDE_uxTaskGetStackHighWaterMark (1) found in FreeRTOSConfig.h
 
+/*
+ * main.cpp — System entry point and task registry
+ *
+ * This file contains setup() which initialises all hardware peripherals (DHT sensor,
+ * heater relay pin, H-bridge motor driver pins, servo) and creates all FreeRTOS tasks
+ * before handing control to the scheduler.  It also owns every global variable shared
+ * across tasks: sensor readings, simulation state, control setpoints, and the system
+ * health bitmask used by the hardware watchdog.
+ *
+ * Task summary (all created here, implemented in their own .cpp files):
+ *   TaskCloud          — WiFi/MQTT connection, sends telemetry, receives commands
+ *   TaskHeater         — controls the heater relay and automatic thermostat logic
+ *   TaskWaterActuator  — drives the water pump and servo valve to reach target home temp
+ *   TaskHomeTemp       — advances the home temperature simulation model each cycle
+ *   TaskHeaterTemp     — advances the boiler water temperature simulation model each cycle
+ *   TaskDHT            — reads the DHT11 humidity/temperature sensor (or uses cloud data)
+ *   TaskMonitor        — prints FreeRTOS stack high-water marks and free heap each cycle
+ *   TaskTimeScheduler  — master tick: notifies every task at its required interval
+ *   TaskwatchdogMonitor— kicks the hardware WDT only when all tasks have reported healthy
+ */
+
 #include "ProjectHeater.h"
 
 
@@ -15,7 +36,7 @@ const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, waterPin = A1
 const int rotationSpeed = 256;
 const bool dir =1; 
 const int spd =256; 
-const byte HEALTH_REQUIRED = 0x7F; // Binary 01111111 (Both tasks must be OK)
+const byte HEALTH_REQUIRED = 0x3F; // bits 0-5: WaterActuator pump, HomeTemp, HeaterTemp, DHT, Heater, WaterActuator valve
 const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
 
@@ -79,6 +100,9 @@ void TaskHeater(void* pv);
 
 
 // -------------------- Arduino setup/loop --------------------
+
+// Initialises hardware peripherals, creates all FreeRTOS tasks, then starts the scheduler.
+// After vTaskStartScheduler() returns control never comes back to loop().
 void setup() {
     Serial.begin(115200);
 
@@ -112,13 +136,15 @@ void setup() {
 
   BaseType_t ok;
 
-  // Create tasks
+  // Create TaskCloud first — needs 400 words, must grab contiguous heap before other tasks fragment it
+  ok = xTaskCreate(TaskCloud, "TaskCloud", 400, nullptr, 2, &hTaskCloud);
+  if (ok != pdPASS) { D_PRINTLN(F("Task Cloud post create failed")); for(;;){} }
+
   ok = xTaskCreate(TaskHeater,     "TaskHeater",    100, nullptr, 1, &hHeater);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed")); for(;;){} }
 
   ok = xTaskCreate(TaskWaterActuator, "TaskWaterActuator", 100, nullptr, 1, &hWaterActuator);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
-
 
   ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 100, nullptr, 1, &hHomeTemp);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTemp create failed")); for(;;){} }
@@ -126,22 +152,17 @@ void setup() {
   ok = xTaskCreate(TaskHeaterTemp,"TaskHeaterTemp", 100, nullptr, 1, &hHeaterTemp);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed")); for(;;){} }
 
-
   ok = xTaskCreate(TaskDHT,       "TaskDHT",       130, nullptr, 1, &hDHT);
   if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
 
-
-  ok =   xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
+  ok = xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
   if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
+
   ok = xTaskCreate(TaskTimeScheduler, "TaskTimeScheduler", 50, nullptr, 3, &hTimeScheduler);
   if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
 
-  
   ok = xTaskCreate(TaskwatchdogMonitor, "TaskWDTMon", 60, nullptr, 1, &hWatchdog);
   if (ok != pdPASS) { D_PRINTLN(F("Watchdog task create failed"));  for(;;){} }
-  
-   ok =xTaskCreate(TaskCloud, "TaskCloud", 400, nullptr, 2, &hTaskCloud);
-  if (ok != pdPASS) { D_PRINTLN(F("Task Cloud post create failed")); for(;;){} }
 
 
   D_PRINT(F("Free heap bytes: "));
@@ -157,13 +178,15 @@ void loop() {
 
 
 
+// Waits for a notification from TaskTimeScheduler each cycle.
+// Kicks the hardware WDT only when systemHealth == HEALTH_REQUIRED (all 6 task bits set).
+// If any bit is missing the kick is skipped, the hardware WDT fires, and the system resets.
+// systemHealth is cleared to 0x00 at the end of every cycle regardless of outcome.
 void TaskwatchdogMonitor(void *pv) {
     for (;;) {
         // Logic: Only refresh if the mask matches our requirements
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        D_PRINT(F("System Health   : ")); 
-        D_PRINTLN(systemHealth);
-        if (systemHealth >= 0 ) { // == HEALTH_REQUIRED this is atemporary fix to make all functions work
+        if (systemHealth == HEALTH_REQUIRED) {
             WDT.refresh();            // Physical Hardware Kick
             #if DEBUG
                 Serial.println(F("WDT: All tasks reported. System Healthy."));
