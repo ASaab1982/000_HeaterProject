@@ -12,12 +12,12 @@
 }
 
 
- void TaskBoilerTemp(void* pv) {
+ void TaskHeaterTemp(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     D_PRINT(millis());
-    doBoilerTempRead();  }
+    doHeaterTempRead();  }
 }
 
  void TaskDHT(void* pv) {
@@ -29,9 +29,9 @@
   }
 }
 
-void doBoilerTempRead() {
+void doHeaterTempRead() {
     updateHeaterModel();
-    D_PRINT(F(" : Boiler Temp: ")); D_PRINTLN(g_boilerWaterTemp);
+    D_PRINT(F(" : Heater Temp:")); D_PRINTLN(g_heaterWaterTemp);
     systemHealth |= (1 << 2);
 }
 

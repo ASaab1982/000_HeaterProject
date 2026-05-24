@@ -6,7 +6,7 @@
 static const float HEAT_RATE_C_PER_S = 1.0f / 20.0f;
 
 // [HEATER MODEL] Physical maximum for boiler water temperature
-static const float BOILER_MAX_TEMP = 90.0f;
+static const float HEATER_MAX_TEMP = 90.0f;
 
 // [HEATER MODEL] Cooling rate interpolation endpoints:
 // At -5°C outdoor → 1°C per 5 min (fastest cooling)
@@ -32,8 +32,8 @@ void updateHeaterModel() {
 
     if (heaterState) {
         // [HEATER MODEL] Heater ON: rise at 1°C per 20s
-        g_boilerWaterTemp += HEAT_RATE_C_PER_S * deltaS;
-        if (g_boilerWaterTemp > BOILER_MAX_TEMP) g_boilerWaterTemp = BOILER_MAX_TEMP;
+        g_heaterWaterTemp += HEAT_RATE_C_PER_S * deltaS;
+        if (g_heaterWaterTemp > HEATER_MAX_TEMP) g_heaterWaterTemp = HEATER_MAX_TEMP;
 
     } else {
         // [HEATER MODEL] Heater OFF: cooling rate is linearly interpolated between
@@ -47,9 +47,9 @@ void updateHeaterModel() {
         float t = (tOutdoor - OUTDOOR_COLD) / (OUTDOOR_WARM - OUTDOOR_COLD);
         float coolingRate = RATE_AT_COLD + t * (RATE_AT_WARM - RATE_AT_COLD);
 
-        g_boilerWaterTemp -= coolingRate * deltaS;
+        g_heaterWaterTemp -= coolingRate * deltaS;
 
         // [HEATER MODEL] Boiler water cannot drop below outdoor temperature
-        if (g_boilerWaterTemp < g_outdoorTemp) g_boilerWaterTemp = g_outdoorTemp;
+        if (g_heaterWaterTemp < g_outdoorTemp) g_heaterWaterTemp = g_outdoorTemp;
     }
 }

@@ -93,19 +93,19 @@ void TaskCloud(void *pvParameters) {
         mqttClient.poll();
         
         if (notified) {
-            sendBoilerData();
+            sendHeaterData();
         }
 
     }
 }
 
 
-void sendBoilerData() {
+void sendHeaterData() {
     JsonDocument doc;
     doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
     doc["waterpumpactivation"] = g_WaterPumpSpeed;
     // [BOILER MODEL] Simulated boiler water temperature — real sensor to replace this in a future release
-    doc["boilerWaterTemp"] = g_boilerWaterTemp;
+    doc["heaterWaterTemp"] = g_heaterWaterTemp;
     doc["homeTempC"] = g_homeTemp;
     doc["dhtTempC"] = g_dhtTempC;
     doc["dhtHumidity"] = g_dhtHumidity;
@@ -151,7 +151,7 @@ void onMqttMessageReceived(int messageSize) {
             const char* action = doc["action"];
             heaterState = (strcmp(action, "on") == 0);
             Serial.print("Heater is now: "); Serial.println(heaterState ? "ON" : "OFF");
-            sendBoilerData();
+            sendHeaterData();
         }
     } else if (command && strcmp(command, "temperature") == 0) {
         float value = doc["value"];
@@ -163,12 +163,12 @@ void onMqttMessageReceived(int messageSize) {
         targetHomeTemp = value;
         Serial.print("New Target Home: "); Serial.println(targetHomeTemp);
         // [2-WAY COMMUNICATION] Immediate Feedback: Push status to UI as soon as variable changes
-        sendBoilerData();
+        sendHeaterData();
     } else if (command && strcmp(command, "manualOverride") == 0) {
         // [MANUAL OVERRIDE] 1 = manual UI control, 0 = automatic thermostat logic
         manualOverride = (doc["value"] == 1);
         Serial.print(F("Manual Override: ")); Serial.println(manualOverride ? "ON" : "OFF");
-        sendBoilerData();
+        sendHeaterData();
     } else if (command && strcmp(command, "heaterSetPoint") == 0) {
         // [HEATER SETPOINT] Boiler water target temperature sent from UI (40–70°C range enforced here)
         float value = doc["value"];
@@ -176,7 +176,7 @@ void onMqttMessageReceived(int messageSize) {
         if (value > 70.0f) value = 70.0f;
         heaterTempSetPoint = value;
         Serial.print(F("Heater SetPoint: ")); Serial.println(heaterTempSetPoint);
-        sendBoilerData();
+        sendHeaterData();
     } else if (command && strcmp(command, "weather") == 0) {
         // [WEATHER] Node.js fetched real outdoor data from Open-Meteo (Neirivue coordinates)
         // and sent it here. We overwrite g_dhtTempC and g_dhtHumidity so the UI shows
@@ -190,7 +190,7 @@ void onMqttMessageReceived(int messageSize) {
         g_useCloudWeather = true;
         Serial.print(F("[WEATHER] Outdoor: ")); Serial.print(g_dhtTempC);
         Serial.print(F("C, ")); Serial.print(g_dhtHumidity); Serial.println(F("%"));
-        sendBoilerData();
+        sendHeaterData();
     }
 }
 

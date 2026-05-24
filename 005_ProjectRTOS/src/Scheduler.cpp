@@ -17,7 +17,7 @@ void TaskTimeScheduler(void* pv) {
     if (hWaterActuator) xTaskNotifyGive(hWaterActuator);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hBoilerTemp)  xTaskNotifyGive(hBoilerTemp);
+    if (hHeaterTemp)  xTaskNotifyGive(hHeaterTemp);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hHomeTemp)    xTaskNotifyGive(hHomeTemp);

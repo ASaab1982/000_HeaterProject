@@ -16,7 +16,7 @@ void updateHomeTempModel() {
     // Valve position scales gain: 0° = 10%, 180° = 100%
     if (g_WaterPumpSpeed > 0) {
         float gainFactor = 0.10f + (g_waterValvePosition / 180.0f) * 0.90f;
-        float gain = HEAT_GAIN_RATE * gainFactor * (g_boilerWaterTemp - g_homeTemp) * deltaS;
+        float gain = HEAT_GAIN_RATE * gainFactor * (g_heaterWaterTemp - g_homeTemp) * deltaS;
         if (gain > 0) g_homeTemp += gain;
     }
 

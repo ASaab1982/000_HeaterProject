@@ -5,7 +5,7 @@
 #include "ProjectHeater.h"
 
 //void driveDCMotor(bool dir, int spd);
-void sendBoilerData();
+void sendHeaterData();
 void TaskCloud(void* pv);
 
 #endif

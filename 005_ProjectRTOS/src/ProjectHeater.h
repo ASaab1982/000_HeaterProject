@@ -53,7 +53,7 @@ extern volatile float targetHomeTemp;
 extern volatile bool manualOverride;
 
 // [SIMULATION] Thermal model variables
-extern volatile float g_boilerWaterTemp;    // Simulated boiler water temperature (°C)
+extern volatile float g_heaterWaterTemp;    // Simulated boiler water temperature (°C)
 extern volatile float g_homeTemp;           // Simulated home air temperature (°C)
 extern volatile float g_BoilerTemp;           // Simulated home air temperature (°C)
 extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by Open-Meteo data via MQTT (°C)
@@ -62,12 +62,11 @@ extern volatile float heaterTempSetPoint;   // Boiler water target temperature (
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
 extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterActuator, hHomeTemp, hBoilerTemp, hDHT,
+extern TaskHandle_t hHeater, hWaterActuator, hHomeTemp, hHeaterTemp, hDHT,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud;
 // --- Function declaration ---
 
-void TasksendBoilerData(void* pv);
 void TaskwatchdogMonitor(void* pv);
 // [2-WAY COMMUNICATION] Function prototype for the incoming message handler
 void onMqttMessageReceived(int messageSize);

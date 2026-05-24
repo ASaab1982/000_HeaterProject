@@ -63,10 +63,10 @@ void controlHomeTemp() {
     } else {
         // Equilibrium — valve position where gain = loss
         // Solve: HEAT_GAIN_RATE * gainFactor * (boiler - home) = HEAT_LOSS_RATE * (home - outdoor)
-        float boilerDelta = g_boilerWaterTemp - g_homeTemp;
+        float heaterDelta = g_heaterWaterTemp - g_homeTemp;
         int pos = 0;
-        if (boilerDelta > 0.0f) {
-            float gainFactor = (HEAT_LOSS_RATE * (g_homeTemp - g_outdoorTemp)) / (HEAT_GAIN_RATE * boilerDelta);
+        if (heaterDelta > 0.0f) {
+            float gainFactor = (HEAT_LOSS_RATE * (g_homeTemp - g_outdoorTemp)) / (HEAT_GAIN_RATE * heaterDelta);
             float valveF = (gainFactor - 0.10f) / 0.90f * 180.0f;
             pos = (int)constrain(valveF, 0.0f, 180.0f);
         }

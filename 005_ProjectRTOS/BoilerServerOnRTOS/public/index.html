@@ -78,7 +78,7 @@
                 <tr><td>DHT Temperature</td><td class="val"><span id="dhtTempC">--</span> °C</td></tr>
                 <tr><td>DHT Humidity</td><td class="val"><span id="dhtHumidity">--</span> %</td></tr>
                 <tr><td>Home Temp</td><td class="val"><span id="homeTempC">--</span> °C</td></tr>
-                <tr><td>Heater Water Temp</td><td class="val"><span id="boilerWaterTemp">--</span> °C</td></tr>
+                <tr><td>Heater Water Temp</td><td class="val"><span id="heaterWaterTemp">--</span> °C</td></tr>
 
                 <!-- ACTUATORS -->
                 <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">⚙️ Actuators</td></tr>
@@ -217,7 +217,7 @@
             document.getElementById('waterpumpactivation').innerText = data.waterpumpactivation === 100 ? 'ON' : 'OFF';
             document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
             document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';
-            document.getElementById('boilerWaterTemp').innerText = data.boilerWaterTemp ?? '--';
+            document.getElementById('heaterWaterTemp').innerText = data.heaterWaterTemp ?? '--';
             
             // [2-WAY COMMUNICATION] State Display Update: Reflects the current state of variables on the Arduino
             document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";

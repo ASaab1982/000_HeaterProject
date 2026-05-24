@@ -41,7 +41,7 @@ volatile float targetHomeTemp = 20.0f;
 volatile bool manualOverride = false;
 
 // [SIMULATION] Thermal model variables
-volatile float g_boilerWaterTemp    = 20.0f;  // Simulated boiler water temperature (°C)
+volatile float g_heaterWaterTemp    = 20.0f;  // Simulated boiler water temperature (°C)
 volatile float g_homeTemp           = 20.0f;  // Simulated home air temperature (°C)
 volatile float g_outdoorTemp        = 10.0f;  // Startup default — overwritten by real Open-Meteo data via MQTT "weather" command
 volatile float heaterTempSetPoint   = 40.0f;  // Startup default — boiler water target temperature (°C), controlled via UI (40–70°C)
@@ -58,23 +58,21 @@ volatile bool g_useCloudWeather = false;
  TaskHandle_t hHeater     = nullptr;
  TaskHandle_t hWaterActuator = nullptr;
  TaskHandle_t hHomeTemp   = nullptr;
- TaskHandle_t hBoilerTemp   = nullptr;
+ TaskHandle_t hHeaterTemp   = nullptr;
  TaskHandle_t hDHT       = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
  TaskHandle_t hTaskCloud   = nullptr;
  TaskHandle_t hWatchdog  = nullptr;
- TaskHandle_t hHivePost  = nullptr;
 
 // --- Task Prototypes ---
 void TaskWaterActuator(void* pv);
 void TaskHomeTemp(void* pv);
-void TaskBoilerTemp(void* pv);
+void TaskHeaterTemp(void* pv);
 void TaskDHT(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
 void TaskwatchdogMonitor(void* pv);
-void TasksendBoilerData(void* pv);
 void TaskTimeScheduler(void* pv);
 void TaskHeater(void* pv);
 
@@ -125,8 +123,8 @@ void setup() {
   ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 100, nullptr, 1, &hHomeTemp);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTemp create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskBoilerTemp,"TaskBoilerTemp", 100, nullptr, 1, &hBoilerTemp);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskBoilerTemp create failed")); for(;;){} }
+  ok = xTaskCreate(TaskHeaterTemp,"TaskHeaterTemp", 100, nullptr, 1, &hHeaterTemp);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed")); for(;;){} }
 
 
   ok = xTaskCreate(TaskDHT,       "TaskDHT",       130, nullptr, 1, &hDHT);

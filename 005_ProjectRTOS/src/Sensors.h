@@ -3,10 +3,10 @@
 
 #include "ProjectHeater.h"
 
-void doBoilerTempRead();
+void doHeaterTempRead();
 void doHomeTempRead();
 void doDHTRead();
-void TaskBoilerTemp(void* pv);
+void TaskHeaterTemp(void* pv);
 void TaskHomeTemp(void* pv);
 void TaskDHT(void* pv);
 

@@ -29,9 +29,9 @@ void doHeaterSequence() {
   // [MANUAL OVERRIDE] When override is OFF, calculate heaterState automatically.
   // Hysteresis: ON below setpoint, OFF above setpoint+5°C, no change in between.
   if (!manualOverride) {
-      if (g_boilerWaterTemp < heaterTempSetPoint)
+      if (g_heaterWaterTemp < heaterTempSetPoint)
           heaterState = true;
-      else if (g_boilerWaterTemp > heaterTempSetPoint + 5.0f)
+      else if (g_heaterWaterTemp > heaterTempSetPoint + 5.0f)
           heaterState = false;
   }
 

@@ -15,7 +15,7 @@ void printRtosStats() {
     if (hHeater)     { D_PRINT(F("Heater    : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeater)); }
     if (hWaterActuator) { D_PRINT(F("WaterAct  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWaterActuator)); }
     if (hHomeTemp)  { D_PRINT(F("HomeTemp  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHomeTemp)); }
-    if (hBoilerTemp)  { D_PRINT(F("BoilerTemp  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hBoilerTemp)); }   
+    if (hHeaterTemp)  { D_PRINT(F("BoilerTemp  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeaterTemp)); }   
     if (hDHT)     { D_PRINT(F("DHT       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
     if (hHeapMonitor)   { D_PRINT(F("HeapMon   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeapMonitor)); }
     if (hTimeScheduler) { D_PRINT(F("Scheduler : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTimeScheduler)); }
