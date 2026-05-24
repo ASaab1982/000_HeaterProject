@@ -11,11 +11,10 @@
 #include <ArduinoJson.h>
 #include <RTC.h>
 #include "Heater.h"
-#include "HeaterModel.h" // [HEATER MODEL] Boiler water temperature simulation
+#include "HeaterModel.h"   // [HEATER MODEL] Boiler water temperature simulation
+#include "HomeTempModel.h" // [HOME MODEL]   House air temperature simulation
 #include "Sensors.h"
-#include "WaterPump.h"
-#include "WaterValve.h"
-#include "WaterRead.h"
+#include "WaterActuator.h"
 #include "Secrets.h"
 #include "DebugMacros.h"
 #include "HeapMonitor.h"
@@ -42,7 +41,6 @@ extern MqttClient  mqttClient;
 extern float dht_h, dht_t;
 extern volatile int g_WaterPumpSpeed;
 extern volatile int g_waterAdc;
-extern volatile float g_houseTempC;
 extern volatile float g_dhtTempC;
 extern volatile float g_dhtHumidity;
 extern volatile float g_heaterPosition;
@@ -57,13 +55,14 @@ extern volatile bool manualOverride;
 // [SIMULATION] Thermal model variables
 extern volatile float g_boilerWaterTemp;    // Simulated boiler water temperature (°C)
 extern volatile float g_homeTemp;           // Simulated home air temperature (°C)
+extern volatile float g_BoilerTemp;           // Simulated home air temperature (°C)
 extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by Open-Meteo data via MQTT (°C)
 extern volatile float heaterTempSetPoint;   // Boiler water target temperature (°C), controlled via UI (40–70°C)
 
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
 extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterPump, hWaterValve, hHouseTemp, hDHT, hWater,
+extern TaskHandle_t hHeater, hWaterActuator, hHomeTemp, hBoilerTemp, hDHT,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud;
 // --- Function declaration ---

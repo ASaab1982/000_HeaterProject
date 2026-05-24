@@ -28,7 +28,6 @@ const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
  //WiFiClient client; // Or WiFiClient client; depending on your setup
 volatile int g_WaterPumpSpeed = 0;
 volatile int g_waterAdc = 0;
-volatile float g_houseTempC = 0.0f;
 volatile float g_dhtTempC = 0.0f;
 volatile float g_dhtHumidity = 0.0f;
 volatile float g_heaterPosition = 0.0f;
@@ -57,11 +56,10 @@ volatile bool g_useCloudWeather = false;
 
 // Task handles for chaining
  TaskHandle_t hHeater     = nullptr;
- TaskHandle_t hWaterPump  = nullptr;
- TaskHandle_t hWaterValve = nullptr;
- TaskHandle_t hHouseTemp  = nullptr;
+ TaskHandle_t hWaterActuator = nullptr;
+ TaskHandle_t hHomeTemp   = nullptr;
+ TaskHandle_t hBoilerTemp   = nullptr;
  TaskHandle_t hDHT       = nullptr;
- TaskHandle_t hWater     = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
  TaskHandle_t hTaskCloud   = nullptr;
@@ -69,11 +67,10 @@ volatile bool g_useCloudWeather = false;
  TaskHandle_t hHivePost  = nullptr;
 
 // --- Task Prototypes ---
-void TaskWaterPump(void* pv);
-void TaskWaterValve(void* pv);
-void TaskHouseTemp(void* pv);
+void TaskWaterActuator(void* pv);
+void TaskHomeTemp(void* pv);
+void TaskBoilerTemp(void* pv);
 void TaskDHT(void* pv);
-void TaskWater(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
 void TaskwatchdogMonitor(void* pv);
@@ -121,28 +118,23 @@ void setup() {
   ok = xTaskCreate(TaskHeater,     "TaskHeater",    100, nullptr, 1, &hHeater);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskWaterPump,  "TaskWaterPump", 90, nullptr, 1, &hWaterPump);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskWaterPump create failed")); for(;;){} }
-
-  ok = xTaskCreate(TaskWaterValve, "TaskWaterValve", 90, nullptr, 1, &hWaterValve);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskWaterValve create failed")); for(;;){} }
+  ok = xTaskCreate(TaskWaterActuator, "TaskWaterActuator", 100, nullptr, 1, &hWaterActuator);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskHouseTemp,"TaskHouseTemp", 90, nullptr, 1, &hHouseTemp);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskHouseTemp create failed")); for(;;){} }
+  ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 100, nullptr, 1, &hHomeTemp);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTemp create failed")); for(;;){} }
+
+  ok = xTaskCreate(TaskBoilerTemp,"TaskBoilerTemp", 100, nullptr, 1, &hBoilerTemp);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskBoilerTemp create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskDHT,       "TaskDHT",       170, nullptr, 1, &hDHT);
+  ok = xTaskCreate(TaskDHT,       "TaskDHT",       130, nullptr, 1, &hDHT);
   if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
 
 
-  ok = xTaskCreate(TaskWater,     "TaskWater",     70, nullptr, 1, &hWater);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskWater create failed")); for(;;){} }
-
-  
   ok =   xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
   if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
-
   ok = xTaskCreate(TaskTimeScheduler, "TaskTimeScheduler", 50, nullptr, 3, &hTimeScheduler);
   if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
 
@@ -150,7 +142,7 @@ void setup() {
   ok = xTaskCreate(TaskwatchdogMonitor, "TaskWDTMon", 60, nullptr, 1, &hWatchdog);
   if (ok != pdPASS) { D_PRINTLN(F("Watchdog task create failed"));  for(;;){} }
   
-   ok =xTaskCreate(TaskCloud, "TaskCloud", 300, nullptr, 2, &hTaskCloud);
+   ok =xTaskCreate(TaskCloud, "TaskCloud", 400, nullptr, 2, &hTaskCloud);
   if (ok != pdPASS) { D_PRINTLN(F("Task Cloud post create failed")); for(;;){} }
 
 

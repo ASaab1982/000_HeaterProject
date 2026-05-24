@@ -200,7 +200,7 @@ client.on('message', (topic, message) => {
             const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
 
             console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
-            console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | House: ${data.houseTempC}°C`);
+            console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Home: ${data.homeTempC}°C`);
             console.log(`| WaterPump: ${data.waterpumpactivation} | Heater: ${data.heaterActivation} | WaterValve: ${data.waterValvePosition}`);
             console.log(`| Boiler Water Temp: ${data.boilerWaterTemp}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
             console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);

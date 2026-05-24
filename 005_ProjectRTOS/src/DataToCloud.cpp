@@ -106,7 +106,7 @@ void sendBoilerData() {
     doc["waterpumpactivation"] = g_WaterPumpSpeed;
     // [BOILER MODEL] Simulated boiler water temperature — real sensor to replace this in a future release
     doc["boilerWaterTemp"] = g_boilerWaterTemp;
-    doc["houseTempC"] = g_houseTempC;
+    doc["homeTempC"] = g_homeTemp;
     doc["dhtTempC"] = g_dhtTempC;
     doc["dhtHumidity"] = g_dhtHumidity;
     doc["heaterActivation"] = g_heaterPosition ? "ON" : "OFF";

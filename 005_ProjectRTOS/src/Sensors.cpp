@@ -3,12 +3,21 @@
 #include "Sensors.h"
 
 
- void TaskHouseTemp(void* pv) {
+ void TaskHomeTemp(void* pv) {
   (void)pv;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     D_PRINT(millis());
-    doHouseTempRead();  }
+    doHomeTempRead();  }
+}
+
+
+ void TaskBoilerTemp(void* pv) {
+  (void)pv;
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    D_PRINT(millis());
+    doBoilerTempRead();  }
 }
 
  void TaskDHT(void* pv) {
@@ -20,16 +29,16 @@
   }
 }
 
+void doBoilerTempRead() {
+    updateHeaterModel();
+    D_PRINT(F(" : Boiler Temp: ")); D_PRINTLN(g_boilerWaterTemp);
+    systemHealth |= (1 << 2);
+}
 
-void doHouseTempRead() {
-    int16_t adcVal = analogRead(tempPin);
-    int16_t tempC10 = map(adcVal, 350, 650, 450, 150); // wer are not using the log funcion to reduce RAM size
-    D_PRINT(F(" :  Temp House : "));
-    D_PRINT(tempC10 / 10); D_PRINT(F("."));
-    D_PRINT(tempC10 % 10); D_PRINTLN(F(" C"));
-    g_houseTempC = tempC10 / 10.0f;
-      systemHealth |= (1 << 2); // Health bit for mic read is OK
-
+void doHomeTempRead() {
+    updateHomeTempModel();
+    D_PRINT(F(" : Home Temp: ")); D_PRINTLN(g_homeTemp);
+    systemHealth |= (1 << 1);
 }
 
 void doDHTRead() {

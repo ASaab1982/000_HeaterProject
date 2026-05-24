@@ -14,19 +14,16 @@ void TaskTimeScheduler(void* pv) {
     if (hHeater)      xTaskNotifyGive(hHeater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hWaterPump)   xTaskNotifyGive(hWaterPump);
+    if (hWaterActuator) xTaskNotifyGive(hWaterActuator);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hWaterValve)  xTaskNotifyGive(hWaterValve);
+    if (hBoilerTemp)  xTaskNotifyGive(hBoilerTemp);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hHouseTemp)   xTaskNotifyGive(hHouseTemp);
+    if (hHomeTemp)    xTaskNotifyGive(hHomeTemp);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hDHT)         xTaskNotifyGive(hDHT);
-    vTaskDelayUntil(&xLastWakeTime, xInterval);
-
-    if (hWater)       xTaskNotifyGive(hWater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     // --- CONDITIONALLY NOTIFY CLOUD ---
