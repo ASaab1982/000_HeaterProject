@@ -4,6 +4,7 @@
 #include "ProjectHeater.h"
 
 void driveWaterPump(bool dir, int spd);
+void controlHomeTemp();
 void doWaterActuatorSequence();
 void TaskWaterActuator(void* pv);
 

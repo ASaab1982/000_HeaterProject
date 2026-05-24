@@ -1,11 +1,5 @@
 #include "HomeTempModel.h"
 
-// Heat gain: 1°C per 15 min when boiler is 1°C above house (only when pump is ON)
-static const float HEAT_GAIN_RATE = 1.0f / 900.0f;   // °C/s per °C difference
-
-// Heat exchange with outdoors: ~3 days to equilibrate (time constant = 1 day)
-static const float HEAT_LOSS_RATE = 1.0f / 86400.0f; // °C/s per °C difference
-
 void updateHomeTempModel() {
     static unsigned long lastCallMs = 0;
 
