@@ -43,7 +43,7 @@ const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
 
 // delcaration of variable to be exanched with the server
- WiFiSSLClient wifiClient;
+ WiFiClientSecure wifiClient;
  MqttClient  mqttClient(wifiClient);
  Servo myservo;
  //WiFiClient client; // Or WiFiClient client; depending on your setup
@@ -107,15 +107,8 @@ void setup() {
     Serial.begin(115200);
 
     // Watch dog start
-    if (!WDT.begin(5592)) {
-    D_PRINTLN(F("WDT.begin a échoué. Tentative de refresh forcé..."));
-    WDT.refresh(); 
-    D_PRINTLN(F("Si vous lisez ceci, le code continue malgré l'erreur."));
-      }
-    else {
-    // SCÉNARIO B : SUCCÈS
-    D_PRINTLN(F("[OK] Watchdog Hardware initialized (5s  timeout)."));
-  }
+    esp_task_wdt_init(5, true);  // 5 second timeout, panic (reset) on fire
+    D_PRINTLN(F("[OK] Watchdog Hardware initialized (5s timeout)."));
   
      dht.begin();
 
@@ -136,39 +129,42 @@ void setup() {
 
   BaseType_t ok;
 
-  // Create TaskCloud first — needs 400 words, must grab contiguous heap before other tasks fragment it
-  ok = xTaskCreate(TaskCloud, "TaskCloud", 400, nullptr, 2, &hTaskCloud);
+  // Create TaskCloud first — needs large stack for TLS handshake + MQTT + ArduinoJson
+  ok = xTaskCreate(TaskCloud, "TaskCloud", 8192, nullptr, 2, &hTaskCloud);
   if (ok != pdPASS) { D_PRINTLN(F("Task Cloud post create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskHeater,     "TaskHeater",    100, nullptr, 1, &hHeater);
+  ok = xTaskCreate(TaskHeater,     "TaskHeater",    2048, nullptr, 1, &hHeater);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskWaterActuator, "TaskWaterActuator", 100, nullptr, 1, &hWaterActuator);
+  ok = xTaskCreate(TaskWaterActuator, "TaskWaterActuator", 2048, nullptr, 1, &hWaterActuator);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 100, nullptr, 1, &hHomeTemp);
+  ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 2048, nullptr, 1, &hHomeTemp);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTemp create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskHeaterTemp,"TaskHeaterTemp", 100, nullptr, 1, &hHeaterTemp);
+  ok = xTaskCreate(TaskHeaterTemp,"TaskHeaterTemp", 2048, nullptr, 1, &hHeaterTemp);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskDHT,       "TaskDHT",       130, nullptr, 1, &hDHT);
+  ok = xTaskCreate(TaskDHT,       "TaskDHT",       2048, nullptr, 1, &hDHT);
   if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskMonitor, "TaskHeapMonitor", 60, nullptr, 1, &hHeapMonitor);
+  ok = xTaskCreate(TaskMonitor, "TaskHeapMonitor", 2048, nullptr, 1, &hHeapMonitor);
   if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskTimeScheduler, "TaskTimeScheduler", 50, nullptr, 3, &hTimeScheduler);
+  ok = xTaskCreate(TaskTimeScheduler, "TaskTimeScheduler", 2048, nullptr, 3, &hTimeScheduler);
   if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskwatchdogMonitor, "TaskWDTMon", 60, nullptr, 1, &hWatchdog);
+  ok = xTaskCreate(TaskwatchdogMonitor, "TaskWDTMon", 2048, nullptr, 1, &hWatchdog);
   if (ok != pdPASS) { D_PRINTLN(F("Watchdog task create failed"));  for(;;){} }
 
 
   D_PRINT(F("Free heap bytes: "));
   D_PRINTLN(xPortGetFreeHeapSize());
 
-  vTaskStartScheduler();
+  // vTaskStartScheduler() is NOT called on ESP32.
+  // The FreeRTOS scheduler is already running before setup() is called
+  // by the Arduino-ESP32 framework. Calling it again would crash the system
+  // by trying to reinitialize the system timer on a core that is already active.
 }
 
 void loop() {
@@ -183,11 +179,12 @@ void loop() {
 // If any bit is missing the kick is skipped, the hardware WDT fires, and the system resets.
 // systemHealth is cleared to 0x00 at the end of every cycle regardless of outcome.
 void TaskwatchdogMonitor(void *pv) {
+    esp_task_wdt_add(NULL);   // Register this task with the ESP32 watchdog
     for (;;) {
         // Logic: Only refresh if the mask matches our requirements
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if (systemHealth == HEALTH_REQUIRED) {
-            WDT.refresh();            // Physical Hardware Kick
+            esp_task_wdt_reset();     // Physical Hardware Kick
             #if DEBUG
                 Serial.println(F("WDT: All tasks reported. System Healthy."));
             #endif
@@ -200,3 +197,46 @@ void TaskwatchdogMonitor(void *pv) {
         systemHealth = 0x00;      // Reset for next cycle regardless of success
     }
 }
+
+// ============================================================
+// MIGRATION NOTES — UNO R4 WiFi → ESP32-S3
+// ============================================================
+// [CHANGED] WiFiSSLClient → WiFiClientSecure
+//   WiFiSSLClient is the UNO R4 TLS client class (Renesas-specific).
+//   WiFiClientSecure is the ESP32 equivalent for TLS connections.
+//
+// [CHANGED] WDT.begin(5592) → esp_task_wdt_init(5, true)
+//   WDT.h is a Renesas-specific watchdog library. On ESP32 the
+//   watchdog is managed via esp_task_wdt.h (ESP-IDF native API).
+//   First argument = timeout in seconds (5s, same as before).
+//   Second argument = true → system resets (panic) on watchdog fire.
+//   Note: the newer ESP-IDF 5.x API uses esp_task_wdt_config_t struct
+//   but the installed Arduino-ESP32 version uses the simpler 2-argument form.
+//
+// [CHANGED] WDT.refresh() → esp_task_wdt_reset()
+//   Same concept — kick the watchdog to prevent a reset.
+//   On ESP32 the watchdog is task-aware: esp_task_wdt_add(NULL)
+//   registers TaskwatchdogMonitor with the watchdog before the
+//   loop starts. Without registration, esp_task_wdt_reset()
+//   would be silently ignored.
+//
+// [CHANGED] Stack sizes increased for all tasks
+//   On the UNO R4 (Renesas RA4M1), the Arduino + FreeRTOS call
+//   chains are shallow — 100 words was enough for most tasks.
+//   On the ESP32, every Arduino API call goes through the ESP-IDF
+//   layer (UART driver, DMA, interrupt handlers, FreeRTOS queues)
+//   making the call stack significantly deeper.
+//   Minimum safe stack on ESP32 = 2048 words for simple tasks.
+//   TaskCloud = 8192 words — TLS handshake + MQTT + ArduinoJson
+//   serialization create very deep call chains that require a
+//   large stack to avoid overflow.
+//
+// [REMOVED] vTaskStartScheduler()
+//   On the UNO R4, FreeRTOS was a separate library and the scheduler
+//   had to be started manually at the end of setup().
+//   On the ESP32, the Arduino-ESP32 framework starts the FreeRTOS
+//   scheduler automatically before setup() is called — setup() itself
+//   runs inside a FreeRTOS task. Calling vTaskStartScheduler() again
+//   tries to reinitialize the system timer on a core that is already
+//   active, causing an immediate crash (ESP_ERR_NOT_FOUND in port_systick.c).
+// ============================================================

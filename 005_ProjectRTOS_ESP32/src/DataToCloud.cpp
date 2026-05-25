@@ -11,7 +11,7 @@
  *   - Incoming command parsing: heater on/off, target home temperature, manual override
  *     toggle, boiler setpoint, and real outdoor weather data from Open-Meteo via Node.js
  *   - Offline watchdog: if the MQTT connection is lost for 10 minutes the system resets
- *     via NVIC_SystemReset() to attempt automatic recovery
+ *     via esp_restart() to attempt automatic recovery
  *
  * TaskCloud wakes every 500 ms to call mqttClient.poll() (keepalive + receive).
  * It is notified by TaskTimeScheduler every 15 s to trigger a telemetry publish.
@@ -21,8 +21,8 @@
 
 const char broker[] = "d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud";
 int        port     = 8883;
-const char statusTopic[]  = "boilers/B1/status"; 
-const char commandTopic[] = "boilers/B1/commands";
+const char statusTopic[]  = "boilers/ESP/status";
+const char commandTopic[] = "boilers/ESP/commands";
 bool isDegradedMode = false; // Declare this at the top of your sketch wifi is down or Hive is down
 
 // Simulation of wrong conenction to hive 
@@ -94,8 +94,8 @@ void TaskCloud(void *pvParameters) {
                 Serial.println(F("\n[!!!] 10 MINUTES OFFLINE. Restarting system for recovery..."));
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 
-                // TRIGGER HARDWARE RESET (Arduino R4 specific)
-                NVIC_SystemReset(); 
+                // TRIGGER HARDWARE RESET (ESP32)
+                esp_restart();
             }            
         } else {
             // === IF CONNECTED (Normal Operation) ===
@@ -114,8 +114,8 @@ void TaskCloud(void *pvParameters) {
         // Update the timestamp so the 10-minute timer starts over
         
         mqttClient.poll();
-        
-        if (notified) {
+
+        if (notified && mqttClient.connected()) {
             sendHeaterData();
         }
 
@@ -128,7 +128,7 @@ void TaskCloud(void *pvParameters) {
 // valve/pump positions, heater state, setpoints, manual override flag, and system health.
 void sendHeaterData() {
     JsonDocument doc;
-    doc["deviceId"] = "B1"; // This allows the UI to identify the boiler
+    doc["deviceId"] = "ESP"; // This allows the UI to identify the boiler
     doc["waterpumpactivation"] = g_WaterPumpSpeed;
     // [BOILER MODEL] Simulated boiler water temperature — real sensor to replace this in a future release
     doc["heaterWaterTemp"] = g_heaterWaterTemp;
@@ -274,19 +274,14 @@ bool initializeCloud() {
         return false; 
     }
 
-    WDT.refresh(); // WiFi phase done — kick before blocking NTP + MQTT
+    esp_task_wdt_reset(); // WiFi phase done — kick before blocking NTP + MQTT
 
     // 4. Sync Time (NTP)
-    RTC.begin();
-    unsigned long epochTime = WiFi.getTime();
-    if (epochTime > 0) {
-        RTCTime now(epochTime);
-        RTC.setTime(now);
-    }
+    configTime(0, 0, "pool.ntp.org");
 
     // 5. MQTT Credentials 
     mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
-    mqttClient.setId("Arduino_Heater_Unit_B1");
+    mqttClient.setId("ESP32_Heater_Unit_ESP");
     mqttClient.setCleanSession(true);
 
     // --- ADDED: LAST WILL AND TESTAMENT ---
@@ -299,7 +294,7 @@ bool initializeCloud() {
     // 6. HiveMQ Connection Loop
     int attempts = 0;
     while (attempts < 10) {
-        WDT.refresh(); // Kick before each blocking TLS handshake
+        esp_task_wdt_reset(); // Kick before each blocking TLS handshake
         Serial.print(F("HiveMQ Attempt #"));
         Serial.println(attempts + 1);
         
@@ -316,8 +311,8 @@ bool initializeCloud() {
             mqttClient.subscribe(commandTopic);
             // [WEATHER] Subscribe to the dedicated retained weather topic so the Arduino
             // always receives the latest outdoor data immediately on connect.
-            mqttClient.subscribe("boilers/B1/weather");
-            WDT.refresh(); // Init fully complete — normal WDT cycle takes over
+            mqttClient.subscribe("boilers/ESP/weather");
+            esp_task_wdt_reset(); // Init fully complete — normal WDT cycle takes over
             return true;
         }
         attempts++;
@@ -326,3 +321,43 @@ bool initializeCloud() {
 
     return false;
 }
+
+// ============================================================
+// MIGRATION NOTES — UNO R4 WiFi → ESP32-S3
+// ============================================================
+// [REMOVED] esp_task_wdt_add(NULL) from TaskCloud
+//   Initially added to register TaskCloud with the ESP32 hardware WDT.
+//   Removed because the systemHealth bitmask mechanism in TaskwatchdogMonitor
+//   already handles task health monitoring. Having TaskCloud also registered
+//   with the hardware WDT caused a conflict — after initializeCloud() fails,
+//   TaskCloud enters its main loop but never calls esp_task_wdt_reset() there,
+//   causing the hardware WDT to fire after 5 seconds despite the system being healthy.
+//   Only TaskwatchdogMonitor interacts with the hardware WDT — that is the original design.
+//
+// [FIXED] sendHeaterData() now only called when mqttClient.connected()
+//   Previously sendHeaterData() was called every 15s regardless of connection
+//   state. This caused misleading serial output showing data being "sent"
+//   even when the MQTT connection was down. Added connection check so data
+//   is only published when actually connected to HiveMQ.
+//
+// [CHANGED] NVIC_SystemReset() → esp_restart()
+//   NVIC_SystemReset() is an ARM Cortex-M specific instruction
+//   that talks directly to the ARM NVIC hardware block. The
+//   ESP32-S3 uses Xtensa LX7 architecture — no NVIC exists.
+//   esp_restart() is the ESP-IDF equivalent: triggers a full
+//   system reset via the ESP32 reset controller.
+//
+// [CHANGED] WDT.refresh() → esp_task_wdt_reset() (3 places)
+//   Same reason as main.cpp — Renesas WDT API replaced with
+//   ESP32 native watchdog API.
+//
+// [CHANGED] NTP/RTC sync — RTC.begin() + WiFi.getTime() + RTCTime
+//   replaced with configTime(0, 0, "pool.ntp.org")
+//   RTC.h and WiFi.getTime() are both Renesas-specific. On ESP32,
+//   configTime() is a single call that starts the SNTP client
+//   internally. The ESP-IDF handles time sync automatically in
+//   the background — no RTC object or manual epoch conversion needed.
+//   First argument = UTC offset in seconds (0 = UTC).
+//   Second argument = daylight saving offset in seconds (0 = none).
+//   Third argument = NTP server address.
+// ============================================================
