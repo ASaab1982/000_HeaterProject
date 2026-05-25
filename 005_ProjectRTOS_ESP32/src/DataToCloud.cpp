@@ -291,7 +291,10 @@ bool initializeCloud() {
     mqttClient.endWill();
     // ---------------------------------------
     mqttClient.setKeepAliveInterval(30000); // 30 seconds timeout between hive and arduino
-    // 6. HiveMQ Connection Loop
+    // 6. TLS — set root CA certificate so WiFiClientSecure can verify HiveMQ's identity
+    wifiClient.setCACert(ROOT_CA);
+
+    // 7. HiveMQ Connection Loop
     int attempts = 0;
     while (attempts < 10) {
         esp_task_wdt_reset(); // Kick before each blocking TLS handshake
@@ -350,6 +353,13 @@ bool initializeCloud() {
 // [CHANGED] WDT.refresh() → esp_task_wdt_reset() (3 places)
 //   Same reason as main.cpp — Renesas WDT API replaced with
 //   ESP32 native watchdog API.
+//
+// [ADDED] wifiClient.setCACert(ROOT_CA)
+//   WiFiClientSecure on ESP32 has no built-in CA store unlike the UNO R4
+//   WiFiSSLClient which used a pre-loaded CA store in the WiFi module firmware.
+//   ROOT_CA is the ISRG Root X1 certificate (Let's Encrypt) stored in Secrets.h.
+//   This allows the ESP32 to verify that HiveMQ's TLS certificate was signed
+//   by a trusted authority before establishing the encrypted connection.
 //
 // [CHANGED] NTP/RTC sync — RTC.begin() + WiFi.getTime() + RTCTime
 //   replaced with configTime(0, 0, "pool.ntp.org")
