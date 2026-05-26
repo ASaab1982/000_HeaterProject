@@ -32,12 +32,15 @@ async function fetchWeatherData() {
         // [WEATHER] Published to a dedicated retained topic so the Arduino receives it
         // immediately on subscribe, regardless of when it connects relative to Node.js.
         // retain: true means HiveMQ stores the last value — no timing race on Arduino reboot.
-        client.publish('boilers/B1/weather', payload, { qos: 0, retain: true }, (error) => {
-            if (error) {
-                console.error('❌ [WEATHER] Failed to publish weather data:', error);
-            } else {
-                console.log(`🌤️  [WEATHER] Neirivue: ${temp}°C, ${humidity}% humidity → sent to Arduino`);
-            }
+        const weatherTopics = ['boilers/B1/weather', 'boilers/ESP/weather'];
+        weatherTopics.forEach(topic => {
+            client.publish(topic, payload, { qos: 0, retain: true }, (error) => {
+                if (error) {
+                    console.error(`❌ [WEATHER] Failed to publish to ${topic}:`, error);
+                } else {
+                    console.log(`🌤️  [WEATHER] Neirivue: ${temp}°C, ${humidity}% → sent to ${topic}`);
+                }
+            });
         });
     } catch (err) {
         console.error('❌ [WEATHER] Failed to fetch from Open-Meteo:', err.message);
@@ -49,7 +52,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const brokerUrl = 'mqtts://d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud:8883';
 const options = {
-    clientId: 'Server_Bridge_Main', // Fixed ID to prevent session stacking
+    clientId: 'Server_Bridge_Local', // Fixed ID to prevent session stacking
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     clean: true,                  // Cleans up the session when you disconnect
@@ -118,7 +121,7 @@ io.on('connection', (socket) => {
 // Notifies all browser clients that the bridge link is up (green indicator).
 client.on('connect', () => {
     console.log('✅ Connected to HiveMQ');
-    client.subscribe('boilers/B1/#');
+    client.subscribe('boilers/#');
     io.emit('bridgeStatus', { status: 'connected' });
     // [WEATHER] Fetch immediately on connect so Arduino has outdoor data right away,
     // then refresh every 10 minutes (outdoor temp doesn't change faster than that)
@@ -164,24 +167,28 @@ client.on('message', (topic, message) => {
     const now = new Date();
     const timestamp = now.toLocaleTimeString() + `.${now.getMilliseconds()}`;
 
-    if (!boilerStates['B1']) boilerStates['B1'] = { deviceId: 'B1' };
-    boilerStates['B1'].lastSeen = Date.now();
+    // Extract device ID from topic — e.g. "boilers/ESP/status" → "ESP"
+    const topicParts = topic.split('/');
+    const deviceIdFromTopic = topicParts.length >= 2 ? topicParts[1] : 'UNKNOWN';
+
+    if (!boilerStates[deviceIdFromTopic]) boilerStates[deviceIdFromTopic] = { deviceId: deviceIdFromTopic };
+    boilerStates[deviceIdFromTopic].lastSeen = Date.now();
 
     // 1. HANDLE STATUS STRINGS (Last Will & Testament or Manual 'online' notice)
     if (rawMessage === 'online' || rawMessage === 'offline') {
         console.log(`\n📡 [STATUS] Alert at ${timestamp}`);
-        console.log(`| Device: B1 | Status: ${rawMessage.toUpperCase()}`);
+        console.log(`| Device: ${deviceIdFromTopic} | Status: ${rawMessage.toUpperCase()}`);
         console.log('---------------------------------------------------------');
 
-        boilerStates['B1'].connectionStatus = rawMessage;
+        boilerStates[deviceIdFromTopic].connectionStatus = rawMessage;
 
         io.emit('boilerStatusUpdate', {
-            deviceId: 'B1',
+            deviceId: deviceIdFromTopic,
             status: rawMessage,
             timestamp: timestamp
         });
 
-        io.emit('boilerUpdate', boilerStates['B1']);
+        io.emit('boilerUpdate', boilerStates[deviceIdFromTopic]);
         return;
     }
 
@@ -247,3 +254,23 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 Server started! Open http://localhost:${PORT} in your browser`);
 });
+
+// ============================================================
+// MIGRATION NOTES — Multi-device support (B1 + ESP)
+// ============================================================
+// [CHANGED] client.subscribe('boilers/B1/#') → client.subscribe('boilers/#')
+//   The old subscription only received messages from the UNO R4 (B1).
+//   The wildcard 'boilers/#' receives from ALL devices — B1, ESP, and
+//   any future boards — without changing the subscribe call each time.
+//
+// [CHANGED] Hardcoded 'B1' in message handler → deviceIdFromTopic
+//   Previously the message handler assumed all messages came from B1.
+//   Now the device ID is extracted from the topic path:
+//   e.g. "boilers/ESP/status" → topicParts[1] → "ESP"
+//   This makes the handler fully dynamic — no hardcoded device IDs.
+//
+// [CHANGED] Weather published to both devices
+//   Previously weather was only sent to 'boilers/B1/weather'.
+//   Now it is published to all known device weather topics so both
+//   the UNO R4 and ESP32 receive real outdoor data from Open-Meteo.
+// ============================================================

@@ -55,6 +55,15 @@
     <!-- LEFT COLUMN: status banner + boiler data -->
     <div class="left-col">
 
+        <!-- Device Selector Dropdown -->
+        <div class="container" style="padding: 15px 25px; margin-bottom: 10px;">
+            <label for="device-select" style="font-weight: bold; color: #555; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">Select Device:</label>
+            <select id="device-select" onchange="switchDevice(this.value)" style="margin-left: 10px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; cursor: pointer;">
+                <option value="B1">B1 — UNO R4 WiFi</option>
+                <option value="ESP">ESP — ESP32-S3</option>
+            </select>
+        </div>
+
         <!-- Error Window for Disconnection/Stale Alerts -->
         <div id="error-window" class="container error-window err-stale">
             <div>
@@ -151,9 +160,14 @@
         const socket = io();
         const loginSection = document.getElementById('login-section');
         const boilerCard = document.getElementById('boiler-card');
-        const heaterControlCard = document.getElementById('heater-control-card'); // New: Heater control card
+        const heaterControlCard = document.getElementById('heater-control-card');
         const errorWindow = document.getElementById('error-window');
         const errorMsg = document.getElementById('error-msg');
+
+        // --- MULTI-DEVICE STATE ---
+        let selectedDevice = 'B1';           // currently selected device in dropdown
+        const boilerData = {};               // stores latest data for each device
+        const boilerStatus = {};             // stores latest status for each device
         
         function attemptLogin() {
             const username = document.getElementById('user-input').value;
@@ -188,28 +202,35 @@
 
         // Handle Connectivity and Data Flow Alerts
         socket.on('boilerStatusUpdate', (data) => {
-            const errText = document.getElementById('error-text');
-            
-            if (data.status === 'offline') {
-                errorWindow.className = 'container error-window err-offline';
-                errText.innerText = `CRITICAL: Heater ${data.deviceId} has DISCONNECTED. (Check Power/Wi-Fi)`;
-            } 
-            else if (data.status === 'no-data') {
-                errorWindow.className = 'container error-window err-stale';
-                errText.innerText = `WARNING: No information received from ${data.deviceId} for > 90s. (Code may be frozen)`;
-            } 
-            else if (data.status === 'online') {
-                errorWindow.className = 'container error-window err-online';
-                errText.innerText = `SYSTEM HEALTHY: Heater ${data.deviceId} is connected and transmitting.`;
-            }
+            boilerStatus[data.deviceId] = data.status;  // store for all devices
+            if (data.deviceId !== selectedDevice) return; // only update UI for selected device
+            updateStatusBanner(data.deviceId, data.status);
         });
 
+        function updateStatusBanner(deviceId, status) {
+            const errText = document.getElementById('error-text');
+            if (status === 'offline') {
+                errorWindow.className = 'container error-window err-offline';
+                errText.innerText = `CRITICAL: Heater ${deviceId} has DISCONNECTED. (Check Power/Wi-Fi)`;
+            } else if (status === 'no-data') {
+                errorWindow.className = 'container error-window err-stale';
+                errText.innerText = `WARNING: No information received from ${deviceId} for > 90s. (Code may be frozen)`;
+            } else if (status === 'online') {
+                errorWindow.className = 'container error-window err-online';
+                errText.innerText = `SYSTEM HEALTHY: Heater ${deviceId} is connected and transmitting.`;
+            }
+        }
 
-        // Listen for the 'boilerUpdate' event from the server, this function doesn't send any command 
+
+        // Listen for the 'boilerUpdate' event from the server
         socket.on('boilerUpdate', (data) => {
             console.log('Received data:', data);
+            boilerData[data.deviceId] = data;           // store for all devices
+            if (data.deviceId !== selectedDevice) return; // only update UI for selected device
+            refreshUI(data);
+        });
 
-            // Update the UI elements
+        function refreshUI(data) {
             document.getElementById('boiler-id-display').innerText = data.deviceId || 'Unknown';
             document.getElementById('dhtTempC').innerText = data.dhtTempC ?? '--';
             document.getElementById('dhtHumidity').innerText = data.dhtHumidity ?? '--';
@@ -218,30 +239,45 @@
             document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
             document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';
             document.getElementById('heaterWaterTemp').innerText = data.heaterWaterTemp ?? '--';
-            
-            // [2-WAY COMMUNICATION] State Display Update: Reflects the current state of variables on the Arduino
             document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";
             document.getElementById('manualOverride').innerText = data.manualOverride ? "MANUAL" : "AUTO";
             document.getElementById('targetHomeTemp').innerText = data.targetHomeTemp ?? '--';
             document.getElementById('heaterTempSetPoint').innerText = data.heaterTempSetPoint ?? '--';
             const healthBin = Number(data.systemHealth || 0).toString(2).padStart(8, '0');
             document.getElementById('systemHealth').innerText = healthBin;
-
-            // Add a timestamp
             const now = new Date();
             document.getElementById('time-val').innerText = now.toLocaleTimeString();
-
-            // Visual feedback: blink the card green on update
             const card = document.getElementById('boiler-card');
             card.classList.add('online');
             setTimeout(() => card.classList.remove('online'), 500);
-        });
+        }
+
+        // Switch device from dropdown — refresh UI with stored data immediately
+        function switchDevice(deviceId) {
+            selectedDevice = deviceId;
+            if (boilerData[deviceId]) {
+                refreshUI(boilerData[deviceId]);
+            } else {
+                // no data yet for this device — reset UI to waiting state
+                document.getElementById('boiler-id-display').innerText = deviceId;
+                ['dhtTempC','dhtHumidity','homeTempC','heaterWaterTemp',
+                 'waterpumpactivation','heaterActivation','waterValvePosition',
+                 'systemHealth','heaterState','manualOverride',
+                 'targetHomeTemp','heaterTempSetPoint'].forEach(id => {
+                    document.getElementById(id).innerText = '--';
+                });
+                document.getElementById('time-val').innerText = 'Never';
+            }
+            // update status banner for new device
+            const status = boilerStatus[deviceId] || 'no-data';
+            updateStatusBanner(deviceId, status);
+        }
         
         // [2-WAY COMMUNICATION] Command Sending Logic: Captures user input and sends it to the server bridge via Socket.io
         function sendHeaterCommand(commandType, value) {
-            const deviceId = document.getElementById('boiler-id-display').innerText;
-            if (deviceId === '--' || deviceId === 'Unknown') {
-                alert('Heater ID is unknown. Please wait for data or log in.');
+            const deviceId = selectedDevice;
+            if (!deviceId) {
+                alert('No device selected.');
                 return;
             }
 
@@ -299,6 +335,35 @@
             }
             socket.emit('heaterCommand', { deviceId: deviceId, payload: payload });
         }
+
+        /*
+         * MIGRATION NOTES — Multi-device support (B1 + ESP)
+         *
+         * [ADDED] Device dropdown selector
+         *   Allows switching between B1 (UNO R4) and ESP (ESP32-S3).
+         *   selectedDevice tracks the currently selected device ID.
+         *
+         * [ADDED] boilerData and boilerStatus objects
+         *   Store latest data and status for ALL devices, not just the selected one.
+         *   This way switching devices instantly shows the last known state.
+         *
+         * [CHANGED] boilerUpdate handler
+         *   Now stores data for any device. Only refreshes the UI if the update
+         *   matches the currently selected device.
+         *
+         * [CHANGED] boilerStatusUpdate handler
+         *   Same approach — stores status for all devices, only updates the
+         *   status banner if the update matches the selected device.
+         *
+         * [ADDED] switchDevice() function
+         *   Called when dropdown changes. Updates selectedDevice, refreshes UI
+         *   immediately with stored data, and updates the status banner.
+         *   If no data exists yet for the device, resets all fields to '--'.
+         *
+         * [CHANGED] sendHeaterCommand()
+         *   Now uses selectedDevice directly instead of reading boiler-id-display.
+         *   Commands are sent to the correct device topic automatically.
+         */
 
         socket.on('connect', () => console.log('Connected to Server Bridge!'));
 
