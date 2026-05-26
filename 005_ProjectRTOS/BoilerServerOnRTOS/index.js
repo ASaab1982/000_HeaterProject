@@ -52,7 +52,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const brokerUrl = 'mqtts://d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud:8883';
 const options = {
-    clientId: 'Server_Bridge_Local', // Fixed ID to prevent session stacking
+    clientId: 'Server_Bridge_Main', // Fixed ID to prevent session stacking
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     clean: true,                  // Cleans up the session when you disconnect
