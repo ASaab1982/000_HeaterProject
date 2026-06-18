@@ -59,8 +59,8 @@
         <div class="container" style="padding: 15px 25px; margin-bottom: 10px;">
             <label for="device-select" style="font-weight: bold; color: #555; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">Select Device:</label>
             <select id="device-select" onchange="switchDevice(this.value)" style="margin-left: 10px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; cursor: pointer;">
-                <option value="B1">Ahmad Saab (B1)</option>
-                <option value="ESP">Julien Souris (ESP)</option>
+                <option value="B1">Julien Souris (B1)</option>
+                <option value="ESP">Ahmad Saab (ESP)</option>
             </select>
         </div>
 
@@ -164,7 +164,7 @@
         const errorWindow = document.getElementById('error-window');
         const errorMsg = document.getElementById('error-msg');
 
-        const deviceNames = { 'B1': 'Ahmad Saab', 'ESP': 'Julien Souris' };
+        const deviceNames = { 'B1': 'Julien Souris', 'ESP': 'Ahmad Saab' };
         function displayName(id) { return deviceNames[id] || id; }
 
         // --- MULTI-DEVICE STATE ---

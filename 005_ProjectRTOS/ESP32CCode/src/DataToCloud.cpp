@@ -277,9 +277,35 @@ bool initializeCloud() {
     esp_task_wdt_reset(); // WiFi phase done — kick before blocking NTP + MQTT
 
     // 4. Sync Time (NTP)
-    configTime(0, 0, "pool.ntp.org");
+    // configTime() launches the SNTP client asynchronously — the clock is still at
+    // epoch 0 until the first response arrives.  TLS cert validation checks the
+    // cert's notBefore/notAfter against the board's current time, so we must wait
+    // for a valid timestamp before attempting the TLS handshake or the cert will
+    // appear to be dated in the future and verification will fail with -9984.
+    // Three servers so if pool.ntp.org is slow on a given boot, the SNTP client
+    // falls through to the next one automatically.
+    configTime(0, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+    Serial.print(F("[NTP] Waiting for time sync"));
+    time_t now = time(nullptr);
+    int ntpRetries = 0;
+    while (now < 1700000000UL && ntpRetries < 60) { // up to 30 s; any time after Nov 2023
+        vTaskDelay(pdMS_TO_TICKS(500));
+        now = time(nullptr);
+        Serial.print(F("."));
+        ntpRetries++;
+    }
+    if (now >= 1700000000UL) {
+        Serial.print(F(" OK — Unix timestamp: "));
+        Serial.println((unsigned long)now); // e.g. 1750000000 confirms valid 2025+ time
+    } else {
+        // Clock is still at epoch — TLS will fail with -9984 if we continue.
+        Serial.print(F(" TIMEOUT — Unix timestamp: "));
+        Serial.println((unsigned long)now); // will print 0 or a very small number
+        Serial.println(F("[NTP] Aborting cloud init (TLS requires a valid clock)"));
+        return false;
+    }
 
-    // 5. MQTT Credentials 
+    // 5. MQTT Credentials
     mqttClient.setUsernamePassword(SECRET_MQTT_USER, SECRET_MQTT_PASS);
     mqttClient.setId("ESP32_Heater_Unit_ESP");
     mqttClient.setCleanSession(true);
