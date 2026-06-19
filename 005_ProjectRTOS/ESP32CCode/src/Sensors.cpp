@@ -1,35 +1,22 @@
 /*
- * Sensors.cpp — FreeRTOS sensor tasks and simulation model dispatchers
+ * Sensors.cpp — FreeRTOS sensor tasks
  *
- * This file contains three FreeRTOS tasks, each woken by a notification from
+ * This file contains two FreeRTOS tasks, each woken by a notification from
  * TaskTimeScheduler every 250 ms × their slot offset:
  *
- *   TaskHomeTemp   — advances the home air temperature simulation (HomeTempModel)
  *   TaskHeaterTemp — advances the boiler water temperature simulation (HeaterModel)
  *   TaskDHT        — reads the physical DHT11 sensor for ambient humidity and temperature;
  *                    skipped when g_useCloudWeather is true (real Open-Meteo data in use)
  *
- * Each task sets its corresponding bit in systemHealth after completing its work so the
- * watchdog knows it ran successfully this cycle.
- *
  * Health bit assignments:
- *   bit 1 — HomeTemp  (1 << 1)
  *   bit 2 — HeaterTemp (1 << 2)
- *   bit 3 — DHT       (1 << 3)
+ *   bit 3 — DHT        (1 << 3)
+ *
+ * Note: g_homeTemp is written directly by TaskXiaomiBLE (Core 0) — no sensor task needed.
  */
 
 #include "ProjectHeater.h"
 #include "Sensors.h"
-
-
-// FreeRTOS task — waits for a scheduler notification then calls doHomeTempRead().
-void TaskHomeTemp(void* pv) {
-  (void)pv;
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    doHomeTempRead();
-  }
-}
 
 // FreeRTOS task — waits for a scheduler notification then calls doHeaterTempRead().
 void TaskHeaterTemp(void* pv) {
@@ -53,12 +40,6 @@ void TaskDHT(void* pv) {
 void doHeaterTempRead() {
     updateHeaterModel();
     systemHealth |= (1 << 2);
-}
-
-// Advances the home air temperature simulation by one time step and sets health bit 1.
-void doHomeTempRead() {
-    updateHomeTempModel();
-    systemHealth |= (1 << 1);
 }
 
 // Reads humidity and temperature from the physical DHT11 sensor and stores results in

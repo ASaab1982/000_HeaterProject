@@ -10,59 +10,70 @@
  *   Slot 1 — TaskHeater
  *   Slot 2 — TaskWaterActuator
  *   Slot 3 — TaskHeaterTemp
- *   Slot 4 — TaskHomeTemp
- *   Slot 5 — TaskDHT
- *   Slot 6 — TaskCloud (only every 15 s, not every cycle)
- *   Slot 7 — TaskMonitor (heap stats)
- *   Slot 8 — TaskwatchdogMonitor
+ *   Slot 4 — TaskDHT
+ *   Slot 5 — TaskCloud (only every 5 min, not every cycle)
+ *   Slot 6 — TaskMonitor (heap stats)
+ *   Slot 7 — TaskwatchdogMonitor
+ *   + TaskXiaomiBLE notified once, exactly 2 min after each cloud push
  *
- * One full round takes 8 × 250 ms = 2 seconds.
- * Cloud telemetry is sent every 15 seconds (every ~7–8 full rounds).
+ * One full round takes 7 × 250 ms = 1.75 seconds.
+ * Cloud telemetry is sent every 5 min.  The Xiaomi BLE read is triggered 2 min after
+ * each cloud push so the WiFi radio has finished its MQTT transaction before BLE
+ * coexistence begins (both share the 2.4 GHz antenna on the ESP32-S3).
  */
 
-#include "ProjectHeater.h" // For D_PRINTLN
+#include "ProjectHeater.h"
 
 // FreeRTOS task — runs continuously at priority 3, notifying all other tasks in sequence.
 // vTaskDelayUntil keeps the 250 ms rhythm accurate even if a notification takes non-zero time.
 void TaskTimeScheduler(void* pv) {
   (void)pv;
   TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xInterval = pdMS_TO_TICKS(250); 
-  
-  // Track when we last sent data to the cloud
-  TickType_t xLastCloudTime = xTaskGetTickCount();
-  const TickType_t xCloudInterval = pdMS_TO_TICKS(15000); // 15 seconds push data to the hive
+  const TickType_t xInterval = pdMS_TO_TICKS(250);
+
+  TickType_t xLastCloudTime  = xTaskGetTickCount();
+  const TickType_t xCloudInterval  = pdMS_TO_TICKS(300000);
+  const TickType_t xXiaomiOffset   = pdMS_TO_TICKS(120000);  // 2 min after cloud push
+
+  TickType_t xCloudFireTick  = 0;      // tick when cloud last fired
+  bool       xiaomiPending   = false;  // true once cloud fires, cleared when Xiaomi is notified
 
   for (;;) {
-    if (hHeater)      xTaskNotifyGive(hHeater);
+    if (hHeater)        xTaskNotifyGive(hHeater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
     if (hWaterActuator) xTaskNotifyGive(hWaterActuator);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hHeaterTemp)  xTaskNotifyGive(hHeaterTemp);
+    if (hHeaterTemp)    xTaskNotifyGive(hHeaterTemp);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hHomeTemp)    xTaskNotifyGive(hHomeTemp);
+
+    if (hDHT)           xTaskNotifyGive(hDHT);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hDHT)         xTaskNotifyGive(hDHT);
-    vTaskDelayUntil(&xLastWakeTime, xInterval);
-
-    // --- CONDITIONALLY NOTIFY CLOUD ---
-    // Check if 60 seconds have passed since the last cloud update
+    // --- CONDITIONALLY NOTIFY CLOUD (every 15 s) ---
     if (hTaskCloud && (xTaskGetTickCount() - xLastCloudTime >= xCloudInterval)) {
-        xTaskNotifyGive(hTaskCloud); 
-        xLastCloudTime = xTaskGetTickCount(); // Reset the timer
+        xTaskNotifyGive(hTaskCloud);
+        xLastCloudTime = xTaskGetTickCount();
+        xCloudFireTick = xLastCloudTime;  // arm the Xiaomi 7-second delay
+        xiaomiPending  = true;
     }
-    // We still delay here to keep the 250ms "rhythm" for the other tasks
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hHeapMonitor) xTaskNotifyGive(hHeapMonitor);
+    if (xiaomiPending && hXiaomiBLE &&
+        (xTaskGetTickCount() - xCloudFireTick >= xXiaomiOffset)) {
+        xTaskNotifyGive(hXiaomiBLE);
+        xiaomiPending = false;
+    }
+
+    if (hHeapMonitor)   xTaskNotifyGive(hHeapMonitor);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (hWatchdog)    xTaskNotifyGive(hWatchdog);
+    if (hWatchdog)      xTaskNotifyGive(hWatchdog);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
+
+    // --- CONDITIONALLY NOTIFY XIAOMI BLE (7 s after cloud, once per cloud cycle) ---
 
   }
 }

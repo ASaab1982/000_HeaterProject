@@ -11,7 +11,7 @@
  *
  *   Zone 2 (equilibrium) : target − 0.4 °C ≤ home temp ≤ target + 0.4 °C
  *       → pump ON, valve at the position where heat gain from boiler equals heat loss
- *          to outdoors (derived from HomeTempModel constants HEAT_GAIN_RATE / HEAT_LOSS_RATE)
+ *          to outdoors (HEAT_GAIN_RATE / HEAT_LOSS_RATE defined below)
  *
  *   Zone 3 (too warm) : home temp > target + 0.6 °C
  *       → pump OFF, valve fully closed (0°)
@@ -23,6 +23,9 @@
  */
 
 #include "WaterActuator.h"
+
+static constexpr float HEAT_GAIN_RATE = 1.0f / 900.0f;    // °C/s per °C difference (boiler → home)
+static constexpr float HEAT_LOSS_RATE = 1.0f / 86400.0f;  // °C/s per °C difference (home ↔ outdoor)
 
 // FreeRTOS task — waits for a scheduler notification then calls doWaterActuatorSequence().
 void TaskWaterActuator(void* pv) {

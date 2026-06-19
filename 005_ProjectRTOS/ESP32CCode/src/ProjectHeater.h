@@ -12,7 +12,6 @@
 #include <ArduinoJson.h>
 #include "Heater.h"
 #include "HeaterModel.h"   // [HEATER MODEL] Boiler water temperature simulation
-#include "HomeTempModel.h" // [HOME MODEL]   House air temperature simulation
 #include "Sensors.h"
 #include "WaterActuator.h"
 #include "Secrets.h"
@@ -20,6 +19,7 @@
 #include "HeapMonitor.h"
 #include "DataToCloud.h"
 #include "Scheduler.h"
+#include "XiaomiBLE.h"
 
 
 
@@ -62,9 +62,9 @@ extern volatile float heaterTempSetPoint;   // Boiler water target temperature (
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
 extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterActuator, hHomeTemp, hHeaterTemp, hDHT,
+extern TaskHandle_t hHeater, hWaterActuator, hHeaterTemp, hDHT,
                      hHeapMonitor, hTimeScheduler,
-                     hWatchdog, hTaskCloud;
+                     hWatchdog, hTaskCloud, hXiaomiBLE;
 // --- Function declaration ---
 
 void TaskwatchdogMonitor(void* pv);

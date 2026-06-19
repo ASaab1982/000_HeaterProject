@@ -13,7 +13,7 @@
  *   TaskCloud          — WiFi/MQTT connection, sends telemetry, receives commands
  *   TaskHeater         — controls the heater relay and automatic thermostat logic
  *   TaskWaterActuator  — drives the water pump and servo valve to reach target home temp
- *   TaskHomeTemp       — advances the home temperature simulation model each cycle
+ *   TaskXiaomiBLE      — reads home temperature from Xiaomi Mi 2 BLE sensor
  *   TaskHeaterTemp     — advances the boiler water temperature simulation model each cycle
  *   TaskDHT            — reads the DHT11 humidity/temperature sensor (or uses cloud data)
  *   TaskMonitor        — prints FreeRTOS stack high-water marks and free heap each cycle
@@ -36,7 +36,8 @@ const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, waterPin = A1
 const int rotationSpeed = 256;
 const bool dir =1; 
 const int spd =256; 
-const byte HEALTH_REQUIRED = 0x3F; // bits 0-5: WaterActuator pump, HomeTemp, HeaterTemp, DHT, Heater, WaterActuator valve
+const byte HEALTH_REQUIRED = 0x3D; // bits 0,2-5: WaterActuator pump, HeaterTemp, DHT, Heater, WaterActuator valve
+                                    // bit 1 (HomeTemp) removed — g_homeTemp now written directly by TaskXiaomiBLE
 const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
 
@@ -71,24 +72,26 @@ volatile float heaterTempSetPoint   = 40.0f;  // Startup default — boiler wate
 // While true, the DHT task skips its physical sensor read so cloud values are not overwritten.
 volatile bool g_useCloudWeather = false;
 
+// [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
+volatile float g_xiaomiHumidity = 0.0f;
+
 // Your setup() and RTOS tasks remain here...
 
 // -------------------- Globals -------------------
 
 // Task handles for chaining
- TaskHandle_t hHeater     = nullptr;
+ TaskHandle_t hHeater        = nullptr;
  TaskHandle_t hWaterActuator = nullptr;
- TaskHandle_t hHomeTemp   = nullptr;
- TaskHandle_t hHeaterTemp   = nullptr;
+ TaskHandle_t hHeaterTemp    = nullptr;
  TaskHandle_t hDHT       = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
  TaskHandle_t hTaskCloud   = nullptr;
  TaskHandle_t hWatchdog  = nullptr;
+ TaskHandle_t hXiaomiBLE = nullptr;
 
 // --- Task Prototypes ---
 void TaskWaterActuator(void* pv);
-void TaskHomeTemp(void* pv);
 void TaskHeaterTemp(void* pv);
 void TaskDHT(void* pv);
 void TaskMonitor(void* pv);
@@ -96,6 +99,7 @@ void TaskCloud(void* pv);
 void TaskwatchdogMonitor(void* pv);
 void TaskTimeScheduler(void* pv);
 void TaskHeater(void* pv);
+void TaskXiaomiBLE(void* pv);
 
 
 
@@ -129,33 +133,34 @@ void setup() {
 
   BaseType_t ok;
 
-  // Create TaskCloud first — needs large stack for TLS handshake + MQTT + ArduinoJson
-  ok = xTaskCreate(TaskCloud, "TaskCloud", 8192, nullptr, 2, &hTaskCloud);
-  if (ok != pdPASS) { D_PRINTLN(F("Task Cloud post create failed")); for(;;){} }
+  // CPU 0 — radio tasks (WiFi stack and BLE stack both live on CPU 0)
+  ok = xTaskCreatePinnedToCore(TaskCloud,     "TaskCloud",     8192, nullptr, 2, &hTaskCloud,  0);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskCloud create failed"));    for(;;){} }
 
-  ok = xTaskCreate(TaskHeater,     "TaskHeater",    2048, nullptr, 1, &hHeater);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed")); for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskXiaomiBLE, "TaskXiaomiBLE", 4096, nullptr, 1, &hXiaomiBLE,  0);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskXiaomiBLE create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskWaterActuator, "TaskWaterActuator", 2048, nullptr, 1, &hWaterActuator);
+  // CPU 1 — deterministic control tasks (heater, valves, sensors, scheduler, watchdog)
+  ok = xTaskCreatePinnedToCore(TaskHeater,        "TaskHeater",       2048, nullptr, 1, &hHeater,        1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed"));        for(;;){} }
+
+  ok = xTaskCreatePinnedToCore(TaskWaterActuator, "TaskWaterActuator",2048, nullptr, 1, &hWaterActuator,  1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskHomeTemp,"TaskHomeTemp", 2048, nullptr, 1, &hHomeTemp);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTemp create failed")); for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskHeaterTemp,    "TaskHeaterTemp",   2048, nullptr, 1, &hHeaterTemp,     1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed"));    for(;;){} }
 
-  ok = xTaskCreate(TaskHeaterTemp,"TaskHeaterTemp", 2048, nullptr, 1, &hHeaterTemp);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed")); for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskDHT,           "TaskDHT",          2048, nullptr, 1, &hDHT,            1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed"));           for(;;){} }
 
-  ok = xTaskCreate(TaskDHT,       "TaskDHT",       2048, nullptr, 1, &hDHT);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed")); for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskMonitor,       "TaskHeapMonitor",  2048, nullptr, 1, &hHeapMonitor,    1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskMonitor create failed"));       for(;;){} }
 
-  ok = xTaskCreate(TaskMonitor, "TaskHeapMonitor", 2048, nullptr, 1, &hHeapMonitor);
-  if (ok != pdPASS) { D_PRINTLN(F("Monitor create failed")); for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskTimeScheduler, "TaskTimeScheduler",2048, nullptr, 3, &hTimeScheduler,  1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskTimeScheduler create failed")); for(;;){} }
 
-  ok = xTaskCreate(TaskTimeScheduler, "TaskTimeScheduler", 2048, nullptr, 3, &hTimeScheduler);
-  if (ok != pdPASS) { D_PRINTLN(F("Task Master Time create failed")); for(;;){} }
-
-  ok = xTaskCreate(TaskwatchdogMonitor, "TaskWDTMon", 2048, nullptr, 1, &hWatchdog);
-  if (ok != pdPASS) { D_PRINTLN(F("Watchdog task create failed"));  for(;;){} }
+  ok = xTaskCreatePinnedToCore(TaskwatchdogMonitor,"TaskWDTMon",      2048, nullptr, 1, &hWatchdog,       1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskWDTMon create failed"));        for(;;){} }
 
 
   D_PRINT(F("Free heap bytes: "));
