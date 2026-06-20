@@ -33,8 +33,8 @@ void TaskTimeScheduler(void* pv) {
   const TickType_t xInterval = pdMS_TO_TICKS(250);
 
   TickType_t xLastCloudTime  = xTaskGetTickCount();
-  const TickType_t xCloudInterval  = pdMS_TO_TICKS(300000);
-  const TickType_t xXiaomiOffset   = pdMS_TO_TICKS(120000);  // 2 min after cloud push
+  const TickType_t xCloudInterval  = pdMS_TO_TICKS(300000/10);
+  const TickType_t xXiaomiOffset   = pdMS_TO_TICKS(120000/10);  // 2 min after cloud push
 
   TickType_t xCloudFireTick  = 0;      // tick when cloud last fired
   bool       xiaomiPending   = false;  // true once cloud fires, cleared when Xiaomi is notified

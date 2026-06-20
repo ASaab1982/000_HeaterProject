@@ -38,7 +38,6 @@ void TaskDHT(void* pv) {
 
 // Advances the boiler water temperature simulation by one time step and sets health bit 2.
 void doHeaterTempRead() {
-    updateHeaterModel();
     systemHealth |= (1 << 2);
 }
 

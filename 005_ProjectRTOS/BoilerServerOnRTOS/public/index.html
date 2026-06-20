@@ -87,7 +87,9 @@
                 <tr><td>DHT Temperature</td><td class="val"><span id="dhtTempC">--</span> °C</td></tr>
                 <tr><td>DHT Humidity</td><td class="val"><span id="dhtHumidity">--</span> %</td></tr>
                 <tr><td>Home Temp</td><td class="val"><span id="homeTempC">--</span> °C</td></tr>
-                <tr><td>Heater Water Temp</td><td class="val"><span id="heaterWaterTemp">--</span> °C</td></tr>
+                <tr><td>Boiler Water Temp (avg)</td><td class="val"><span id="heaterWaterTemp">--</span> °C</td></tr>
+                <tr><td>Boiler 1 Temp</td><td class="val"><span id="boiler1Temp">--</span> °C</td></tr>
+                <tr><td>Boiler 2 Temp</td><td class="val"><span id="boiler2Temp">--</span> °C</td></tr>
 
                 <!-- ACTUATORS -->
                 <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">⚙️ Actuators</td></tr>
@@ -242,7 +244,9 @@
             document.getElementById('waterpumpactivation').innerText = data.waterpumpactivation === 100 ? 'ON' : 'OFF';
             document.getElementById('heaterActivation').innerText = data.heaterActivation ?? '--';
             document.getElementById('waterValvePosition').innerText = data.waterValvePosition ?? '--';
-            document.getElementById('heaterWaterTemp').innerText = data.heaterWaterTemp ?? '--';
+            document.getElementById('heaterWaterTemp').innerText = data.heaterWaterTemp != null ? Number(data.heaterWaterTemp).toFixed(1) : '--';
+            document.getElementById('boiler1Temp').innerText = data.boiler1Temp != null ? Number(data.boiler1Temp).toFixed(1) : '--';
+            document.getElementById('boiler2Temp').innerText = data.boiler2Temp != null ? Number(data.boiler2Temp).toFixed(1) : '--';
             document.getElementById('heaterState').innerText = data.heaterState ? "ON" : "OFF";
             document.getElementById('manualOverride').innerText = data.manualOverride ? "MANUAL" : "AUTO";
             document.getElementById('targetHomeTemp').innerText = data.targetHomeTemp ?? '--';
@@ -265,6 +269,7 @@
                 // no data yet for this device — reset UI to waiting state
                 document.getElementById('boiler-id-display').innerText = displayName(deviceId);
                 ['dhtTempC','dhtHumidity','homeTempC','heaterWaterTemp',
+                 'boiler1Temp','boiler2Temp',
                  'waterpumpactivation','heaterActivation','waterValvePosition',
                  'systemHealth','heaterState','manualOverride',
                  'targetHomeTemp','heaterTempSetPoint'].forEach(id => {

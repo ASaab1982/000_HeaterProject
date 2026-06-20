@@ -209,7 +209,7 @@ client.on('message', (topic, message) => {
             console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
             console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Home: ${data.homeTempC}°C`);
             console.log(`| WaterPump: ${data.waterpumpactivation} | Heater: ${data.heaterActivation} | WaterValve: ${data.waterValvePosition}`);
-            console.log(`| Heater Water Temp: ${data.heaterWaterTemp}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
+            console.log(`| Heater Water Temp: ${data.heaterWaterTemp}°C | Boiler1: ${data.boiler1Temp ?? 'N/A'}°C | Boiler2: ${data.boiler2Temp ?? 'N/A'}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
             console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
             console.log('---------------------------------------------------------');
 
