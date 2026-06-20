@@ -143,6 +143,11 @@ void sendHeaterData() {
     doc["targetHomeTemp"] = targetHomeTemp;
     doc["heaterTempSetPoint"] = heaterTempSetPoint; // [HEATER SETPOINT] Boiler water target temperature
     doc["manualOverride"] = manualOverride;         // [MANUAL OVERRIDE] true = manual, false = automatic
+    // [NTC] Real temperatures from the four NTC thermistors (null when open/short circuit)
+    if (isnan(g_boiler1Temp))     doc["boiler1Temp"]     = nullptr; else doc["boiler1Temp"]     = (float)g_boiler1Temp;
+    if (isnan(g_boiler2Temp))     doc["boiler2Temp"]     = nullptr; else doc["boiler2Temp"]     = (float)g_boiler2Temp;
+    if (isnan(g_waterOutletTemp)) doc["waterOutletTemp"] = nullptr; else doc["waterOutletTemp"] = (float)g_waterOutletTemp;
+    if (isnan(g_waterInletTemp))  doc["waterInletTemp"]  = nullptr; else doc["waterInletTemp"]  = (float)g_waterInletTemp;
     
     // Serialize to String first so ArduinoMqttClient knows the exact payload size.
     // Without this, the library defaults to a 256-byte buffer and truncates larger JSON.

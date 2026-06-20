@@ -36,8 +36,8 @@ const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, waterPin = A1
 const int rotationSpeed = 256;
 const bool dir =1; 
 const int spd =256; 
-const byte HEALTH_REQUIRED = 0x3D; // bits 0,2-5: WaterActuator pump, HeaterTemp, DHT, Heater, WaterActuator valve
-                                    // bit 1 (HomeTemp) removed — g_homeTemp now written directly by TaskXiaomiBLE
+const byte HEALTH_REQUIRED = 0x3F; // bits 0-5: WaterActuator pump, NTC, HeaterTemp, DHT, Heater, WaterActuator valve
+                                    // bit 1 reused for NTC (HomeTemp task removed)
 const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
 
@@ -75,6 +75,12 @@ volatile bool g_useCloudWeather = false;
 // [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
 volatile float g_xiaomiHumidity = 0.0f;
 
+// [NTC] Real temperatures from the four NTC thermistors (NAN until first read)
+volatile float g_boiler1Temp     = NAN;
+volatile float g_boiler2Temp     = NAN;
+volatile float g_waterOutletTemp = NAN;
+volatile float g_waterInletTemp  = NAN;
+
 // Your setup() and RTOS tasks remain here...
 
 // -------------------- Globals -------------------
@@ -83,7 +89,8 @@ volatile float g_xiaomiHumidity = 0.0f;
  TaskHandle_t hHeater        = nullptr;
  TaskHandle_t hWaterActuator = nullptr;
  TaskHandle_t hHeaterTemp    = nullptr;
- TaskHandle_t hDHT       = nullptr;
+ TaskHandle_t hDHT           = nullptr;
+ TaskHandle_t hNTC           = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
  TaskHandle_t hTaskCloud   = nullptr;
@@ -94,6 +101,7 @@ volatile float g_xiaomiHumidity = 0.0f;
 void TaskWaterActuator(void* pv);
 void TaskHeaterTemp(void* pv);
 void TaskDHT(void* pv);
+void TaskNTC(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
 void TaskwatchdogMonitor(void* pv);
@@ -124,6 +132,11 @@ void setup() {
     pinMode(tempPin, INPUT);
     pinMode(waterPin, INPUT);
 
+    pinMode(NTC_PIN_BOILER1,  INPUT);
+    pinMode(NTC_PIN_BOILER2,  INPUT);
+    pinMode(NTC_PIN_OUTLET,   INPUT);
+    pinMode(NTC_PIN_INLET,    INPUT);
+
 
     myservo.attach(servoPin);
     // adding a small delay to let the mcu breath
@@ -152,6 +165,9 @@ void setup() {
 
   ok = xTaskCreatePinnedToCore(TaskDHT,           "TaskDHT",          2048, nullptr, 1, &hDHT,            1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed"));           for(;;){} }
+
+  ok = xTaskCreatePinnedToCore(TaskNTC,           "TaskNTC",          2048, nullptr, 1, &hNTC,            1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskNTC create failed"));           for(;;){} }
 
   ok = xTaskCreatePinnedToCore(TaskMonitor,       "TaskHeapMonitor",  2048, nullptr, 1, &hHeapMonitor,    1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskMonitor create failed"));       for(;;){} }

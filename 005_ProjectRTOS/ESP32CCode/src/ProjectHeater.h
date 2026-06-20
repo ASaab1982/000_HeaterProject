@@ -20,6 +20,7 @@
 #include "DataToCloud.h"
 #include "Scheduler.h"
 #include "XiaomiBLE.h"
+#include "NTCSensors.h"
 
 
 
@@ -54,15 +55,21 @@ extern volatile bool manualOverride;
 
 // [SIMULATION] Thermal model variables
 extern volatile float g_heaterWaterTemp;    // Simulated boiler water temperature (°C)
-extern volatile float g_homeTemp;           // Simulated home air temperature (°C)
-extern volatile float g_BoilerTemp;           // Simulated home air temperature (°C)
+extern volatile float g_homeTemp;           // Home air temperature — written by XiaomiBLE (°C)
+extern volatile float g_BoilerTemp;         // Boiler temperature (°C)
 extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by Open-Meteo data via MQTT (°C)
 extern volatile float heaterTempSetPoint;   // Boiler water target temperature (°C), controlled via UI (40–70°C)
+
+// NTC thermistor readings (NAN = open/short circuit)
+extern volatile float g_boiler1Temp;
+extern volatile float g_boiler2Temp;
+extern volatile float g_waterOutletTemp;
+extern volatile float g_waterInletTemp;
 
 // [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
 // Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
 extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterActuator, hHeaterTemp, hDHT,
+extern TaskHandle_t hHeater, hWaterActuator, hHeaterTemp, hDHT, hNTC,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud, hXiaomiBLE;
 // --- Function declaration ---

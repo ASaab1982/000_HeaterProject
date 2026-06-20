@@ -11,12 +11,13 @@
  *   Slot 2 — TaskWaterActuator
  *   Slot 3 — TaskHeaterTemp
  *   Slot 4 — TaskDHT
- *   Slot 5 — TaskCloud (only every 5 min, not every cycle)
- *   Slot 6 — TaskMonitor (heap stats)
- *   Slot 7 — TaskwatchdogMonitor
+ *   Slot 5 — TaskNTC  (4× NTC thermistors)
+ *   Slot 6 — TaskCloud (only every 5 min, not every cycle)
+ *   Slot 7 — TaskMonitor (heap stats)
+ *   Slot 8 — TaskwatchdogMonitor
  *   + TaskXiaomiBLE notified once, exactly 2 min after each cloud push
  *
- * One full round takes 7 × 250 ms = 1.75 seconds.
+ * One full round takes 8 × 250 ms = 2.0 seconds.
  * Cloud telemetry is sent every 5 min.  The Xiaomi BLE read is triggered 2 min after
  * each cloud push so the WiFi radio has finished its MQTT transaction before BLE
  * coexistence begins (both share the 2.4 GHz antenna on the ESP32-S3).
@@ -52,7 +53,10 @@ void TaskTimeScheduler(void* pv) {
     if (hDHT)           xTaskNotifyGive(hDHT);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    // --- CONDITIONALLY NOTIFY CLOUD (every 15 s) ---
+    if (hNTC)           xTaskNotifyGive(hNTC);
+    vTaskDelayUntil(&xLastWakeTime, xInterval);
+
+    // --- CONDITIONALLY NOTIFY CLOUD (every 5 min) ---
     if (hTaskCloud && (xTaskGetTickCount() - xLastCloudTime >= xCloudInterval)) {
         xTaskNotifyGive(hTaskCloud);
         xLastCloudTime = xTaskGetTickCount();
