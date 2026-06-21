@@ -2,17 +2,13 @@
 #define PROJECT_HEATER_H
 
 #include <Arduino.h>
-#include <ESP32Servo.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
 #include <esp_task_wdt.h>
 #include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
-#include "Heater.h"
+#include "HeaterActuator.h"
 #include "HeaterModel.h"   // [HEATER MODEL] Boiler water temperature simulation
-#include "Sensors.h"
 #include "WaterActuator.h"
 #include "Secrets.h"
 #include "DebugMacros.h"
@@ -24,40 +20,35 @@
 
 
 
-// --- Global Pins ---
-extern const int HeaterPin;
-extern const uint8_t in1Pin, in2Pin, enablePin;
-extern const uint8_t servoPin, tempPin, waterPin;
-extern const int rotationSpeed;
+// --- Relay Pins ---
+extern const int PIN_RELAY_HEATER;
+extern const int PIN_RELAY_PUMP;
+extern const int PIN_RELAY_VALVE_CW;
+extern const int PIN_RELAY_VALVE_CCW;
 
 // --- Global Objects & Variables ---
-// Class object
-extern DHT dht;
-extern Servo myservo;
-// extern WiFiClient client;
 extern WiFiClientSecure wifiClient;
 extern MqttClient  mqttClient;
 
 // Normal object
-extern float dht_h, dht_t;
 extern volatile int g_WaterPumpSpeed;
 extern volatile int g_waterAdc;
-extern volatile float g_dhtTempC;
-extern volatile float g_dhtHumidity;
 extern volatile float g_heaterPosition;
 extern volatile int g_waterValvePosition;
 extern volatile byte systemHealth;
 // [2-WAY COMMUNICATION] Extern declarations for global heater variables
 extern volatile bool heaterState;
 extern volatile float targetHomeTemp;
-// [MANUAL OVERRIDE] true = manual UI control, false = automatic thermostat logic in Heater.cpp
+// [MANUAL OVERRIDE] true = manual UI control, false = automatic thermostat logic in HeaterActuator.cpp
 extern volatile bool manualOverride;
 
 // [SIMULATION] Thermal model variables
 extern volatile float g_heaterWaterTemp;    // Simulated boiler water temperature (°C)
 extern volatile float g_homeTemp;           // Home air temperature — written by XiaomiBLE (°C)
 extern volatile float g_BoilerTemp;         // Boiler temperature (°C)
-extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by Open-Meteo data via MQTT (°C)
+extern volatile float g_outdoorTemp;        // Outdoor temperature — overwritten by weather data via MQTT (°C)
+extern volatile float g_outdoorHumidity;    // Outdoor humidity — overwritten by weather data via MQTT (%)
+extern volatile bool  g_usePhysicalModel;   // false = NTC sensors direct, true = physics model seeded from sensors
 extern volatile float heaterTempSetPoint;   // Boiler water target temperature (°C), controlled via UI (40–70°C)
 
 // NTC thermistor readings (NAN = open/short circuit)
@@ -66,10 +57,7 @@ extern volatile float g_boiler2Temp;
 extern volatile float g_waterOutletTemp;
 extern volatile float g_waterInletTemp;
 
-// [WEATHER] True once Node.js has sent real outdoor weather data from Open-Meteo.
-// Used by Sensors.cpp to skip the physical DHT read when cloud data is available.
-extern volatile bool g_useCloudWeather;
-extern TaskHandle_t hHeater, hWaterActuator, hHeaterTemp, hDHT, hNTC,
+extern TaskHandle_t hHeater, hWaterActuator, hNTC,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud, hXiaomiBLE;
 // --- Function declaration ---

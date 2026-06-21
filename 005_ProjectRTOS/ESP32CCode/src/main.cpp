@@ -14,8 +14,6 @@
  *   TaskHeater         — controls the heater relay and automatic thermostat logic
  *   TaskWaterActuator  — drives the water pump and servo valve to reach target home temp
  *   TaskXiaomiBLE      — reads home temperature from Xiaomi Mi 2 BLE sensor
- *   TaskHeaterTemp     — advances the boiler water temperature simulation model each cycle
- *   TaskDHT            — reads the DHT11 humidity/temperature sensor (or uses cloud data)
  *   TaskMonitor        — prints FreeRTOS stack high-water marks and free heap each cycle
  *   TaskTimeScheduler  — master tick: notifies every task at its required interval
  *   TaskwatchdogMonitor— kicks the hardware WDT only when all tasks have reported healthy
@@ -26,18 +24,13 @@
 
 // -------------------- Pins / constants (same as your sketch) --------------------
 
-#define DHTPIN 2
-#define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
-
 // Define all variables here (no 'static') so the 'extern' in .h files can find them
-const int HeaterPin = 11;
-const uint8_t in1Pin = 8, in2Pin = 7, enablePin = 6, tempPin = A0, waterPin = A1, servoPin = 5;
-const int rotationSpeed = 256;
-const bool dir =1; 
-const int spd =256; 
-const byte HEALTH_REQUIRED = 0x3F; // bits 0-5: WaterActuator pump, NTC, HeaterTemp, DHT, Heater, WaterActuator valve
-                                    // bit 1 reused for NTC (HomeTemp task removed)
+// Relay pins
+const int PIN_RELAY_HEATER   = 9;   // Heater actuator       → HeaterActuator.cpp
+const int PIN_RELAY_PUMP     = 10;  // Water pump actuator   → WaterActuator.cpp
+const int PIN_RELAY_VALVE_CW = 11;  // Valve clockwise       → WaterActuator.cpp
+const int PIN_RELAY_VALVE_CCW = 12; // Valve counter-clockwise → WaterActuator.cpp
+const byte HEALTH_REQUIRED = 0x33; // bits 0,1,4,5: WaterActuator pump, NTC, Heater, WaterActuator valve
 const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 
 
@@ -46,12 +39,8 @@ const uint32_t WDT_TIMEOUT = 5000; // 5 seconds
 // delcaration of variable to be exanched with the server
  WiFiClientSecure wifiClient;
  MqttClient  mqttClient(wifiClient);
- Servo myservo;
- //WiFiClient client; // Or WiFiClient client; depending on your setup
 volatile int g_WaterPumpSpeed = 0;
 volatile int g_waterAdc = 0;
-volatile float g_dhtTempC = 0.0f;
-volatile float g_dhtHumidity = 0.0f;
 volatile float g_heaterPosition = 0.0f;
 volatile int g_waterValvePosition = 0;
 volatile byte systemHealth = 0x00;
@@ -63,14 +52,15 @@ volatile float targetHomeTemp = 20.0f;
 volatile bool manualOverride = false;
 
 // [SIMULATION] Thermal model variables
-volatile float g_heaterWaterTemp    = 20.0f;  // Simulated boiler water temperature (°C)
-volatile float g_homeTemp           = 20.0f;  // Simulated home air temperature (°C)
-volatile float g_outdoorTemp        = 10.0f;  // Startup default — overwritten by real Open-Meteo data via MQTT "weather" command
+volatile float g_heaterWaterTemp    = 50.0f;  // Startup default — overwritten by NTC reads
+volatile float g_homeTemp           = 50.0f;  // Startup default — overwritten by first Xiaomi BLE read
+volatile float g_outdoorTemp        = 10.0f;  // Startup default — overwritten by real weather data via MQTT "weather" command
+volatile float g_outdoorHumidity    = 0.0f;   // Startup default — overwritten by real weather data via MQTT "weather" command
 volatile float heaterTempSetPoint   = 40.0f;  // Startup default — boiler water target temperature (°C), controlled via UI (40–70°C)
 
-// [WEATHER] Flag set to true when Node.js has pushed real outdoor weather data via MQTT.
-// While true, the DHT task skips its physical sensor read so cloud values are not overwritten.
-volatile bool g_useCloudWeather = false;
+// [HEATER MODEL] false = use NTC sensor values directly (Option 1)
+//                true  = use physics model seeded from sensors at startup (Option 2)
+volatile bool g_usePhysicalModel = true;
 
 // [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
 volatile float g_xiaomiHumidity = 0.0f;
@@ -88,8 +78,6 @@ volatile float g_waterInletTemp  = NAN;
 // Task handles for chaining
  TaskHandle_t hHeater        = nullptr;
  TaskHandle_t hWaterActuator = nullptr;
- TaskHandle_t hHeaterTemp    = nullptr;
- TaskHandle_t hDHT           = nullptr;
  TaskHandle_t hNTC           = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
@@ -99,8 +87,6 @@ volatile float g_waterInletTemp  = NAN;
 
 // --- Task Prototypes ---
 void TaskWaterActuator(void* pv);
-void TaskHeaterTemp(void* pv);
-void TaskDHT(void* pv);
 void TaskNTC(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
@@ -122,15 +108,10 @@ void setup() {
     esp_task_wdt_init(5, true);  // 5 second timeout, panic (reset) on fire
     D_PRINTLN(F("[OK] Watchdog Hardware initialized (5s timeout)."));
   
-     dht.begin();
-
-    pinMode(HeaterPin, OUTPUT);
-    pinMode(in1Pin, OUTPUT);
-    pinMode(in2Pin, OUTPUT);
-    pinMode(enablePin, OUTPUT);
-
-    pinMode(tempPin, INPUT);
-    pinMode(waterPin, INPUT);
+    pinMode(PIN_RELAY_HEATER,    OUTPUT); digitalWrite(PIN_RELAY_HEATER,    LOW);
+    pinMode(PIN_RELAY_PUMP,      OUTPUT); digitalWrite(PIN_RELAY_PUMP,      LOW);
+    pinMode(PIN_RELAY_VALVE_CW,  OUTPUT); digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
+    pinMode(PIN_RELAY_VALVE_CCW, OUTPUT); digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
 
     pinMode(NTC_PIN_BOILER1,  INPUT);
     pinMode(NTC_PIN_BOILER2,  INPUT);
@@ -138,9 +119,7 @@ void setup() {
     pinMode(NTC_PIN_INLET,    INPUT);
 
 
-    myservo.attach(servoPin);
-    // adding a small delay to let the mcu breath
-    delay(100); 
+    delay(100);
 
     
 
@@ -159,12 +138,6 @@ void setup() {
 
   ok = xTaskCreatePinnedToCore(TaskWaterActuator, "TaskWaterActuator",2048, nullptr, 1, &hWaterActuator,  1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
-
-  ok = xTaskCreatePinnedToCore(TaskHeaterTemp,    "TaskHeaterTemp",   2048, nullptr, 1, &hHeaterTemp,     1);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskHeaterTemp create failed"));    for(;;){} }
-
-  ok = xTaskCreatePinnedToCore(TaskDHT,           "TaskDHT",          2048, nullptr, 1, &hDHT,            1);
-  if (ok != pdPASS) { D_PRINTLN(F("TaskDHT create failed"));           for(;;){} }
 
   ok = xTaskCreatePinnedToCore(TaskNTC,           "TaskNTC",          2048, nullptr, 1, &hNTC,            1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskNTC create failed"));           for(;;){} }

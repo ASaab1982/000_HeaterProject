@@ -30,8 +30,6 @@ void printRtosStats() {
     D_PRINTLN(F("====== Cycle Stats ======"));
     if (hHeater)        { D_PRINT(F("Heater    : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeater)); }
     if (hWaterActuator) { D_PRINT(F("WaterAct  : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hWaterActuator)); }
-    if (hHeaterTemp)    { D_PRINT(F("HeaterTemp: ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeaterTemp)); }
-    if (hDHT)           { D_PRINT(F("DHT       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hDHT)); }
     if (hNTC)           { D_PRINT(F("NTC       : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hNTC)); }
     if (hHeapMonitor)   { D_PRINT(F("HeapMon   : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hHeapMonitor)); }
     if (hTimeScheduler) { D_PRINT(F("Scheduler : ")); D_PRINTLN(uxTaskGetStackHighWaterMark(hTimeScheduler)); }

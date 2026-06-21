@@ -133,8 +133,8 @@ void sendHeaterData() {
     // [BOILER MODEL] Simulated boiler water temperature — real sensor to replace this in a future release
     doc["heaterWaterTemp"] = g_heaterWaterTemp;
     doc["homeTempC"] = g_homeTemp;
-    doc["dhtTempC"] = g_dhtTempC;
-    doc["dhtHumidity"] = g_dhtHumidity;
+    doc["dhtTempC"] = g_outdoorTemp;
+    doc["dhtHumidity"] = g_outdoorHumidity;
     doc["heaterActivation"] = g_heaterPosition ? "ON" : "OFF";
     doc["waterValvePosition"] = g_waterValvePosition;
     doc["systemHealth"] = systemHealth;
@@ -165,8 +165,8 @@ void sendHeaterData() {
 //   "temperature"   — sets targetHomeTemp, clamped to 5–30 °C
 //   "manualOverride"— switches between manual UI control and automatic thermostat logic
 //   "heaterSetPoint"— sets boiler water target temperature, clamped to 40–70 °C
-//   "weather"       — receives real outdoor temperature and humidity from Open-Meteo
-//                     via the Node.js bridge; sets g_useCloudWeather to stop DHT overwrites
+//   "weather"       — receives real outdoor temperature and humidity from the weather API
+//                     via the Node.js bridge; updates g_outdoorTemp for the boiler model
 // Sends an immediate sendHeaterData() after each change so the UI reflects the new state.
 void onMqttMessageReceived(int messageSize) {
     // Read the message into a string or buffer
@@ -217,18 +217,10 @@ void onMqttMessageReceived(int messageSize) {
         Serial.print(F("Heater SetPoint: ")); Serial.println(heaterTempSetPoint);
         sendHeaterData();
     } else if (command && strcmp(command, "weather") == 0) {
-        // [WEATHER] Node.js fetched real outdoor data from Open-Meteo (Neirivue coordinates)
-        // and sent it here. We overwrite g_dhtTempC and g_dhtHumidity so the UI shows
-        // real outdoor conditions instead of the physical DHT sensor inside the enclosure.
-        // g_useCloudWeather = true tells Sensors.cpp to stop overwriting these with raw DHT reads.
-        // g_outdoorTemp gets the same value so the boiler simulation in Heater.cpp
-        // will use real outdoor temperature once that physics is implemented.
-        g_dhtTempC    = doc["outdoorTemp"];
-        g_dhtHumidity = doc["outdoorHumidity"];
-        g_outdoorTemp = doc["outdoorTemp"];
-        g_useCloudWeather = true;
-        Serial.print(F("[WEATHER] Outdoor: ")); Serial.print(g_dhtTempC);
-        Serial.print(F("C, ")); Serial.print(g_dhtHumidity); Serial.println(F("%"));
+        g_outdoorTemp     = doc["outdoorTemp"];
+        g_outdoorHumidity = doc["outdoorHumidity"];
+        Serial.print(F("[WEATHER] Outdoor: ")); Serial.print(g_outdoorTemp);
+        Serial.print(F("C, ")); Serial.print(g_outdoorHumidity); Serial.println(F("%"));
         sendHeaterData();
     }
 }

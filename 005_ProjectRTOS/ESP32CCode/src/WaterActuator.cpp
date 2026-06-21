@@ -1,8 +1,9 @@
 /*
  * WaterActuator.cpp — Water pump and servo valve control
  *
- * This file drives the H-bridge water pump (in1Pin / in2Pin / enablePin) and the servo
- * valve (servoPin) to regulate home air temperature towards targetHomeTemp.
+ * This file drives the water pump relay (PIN_RELAY_PUMP, GPIO 10) and the motorised valve
+ * relays (PIN_RELAY_VALVE_CW GPIO 11, PIN_RELAY_VALVE_CCW GPIO 12) to regulate home air
+ * temperature towards targetHomeTemp.
  *
  * Control strategy — 3-zone logic with ±0.5 °C deadband and 0.2 °C hysteresis:
  *
@@ -24,9 +25,6 @@
 
 #include "WaterActuator.h"
 
-static constexpr float HEAT_GAIN_RATE = 1.0f / 900.0f;    // °C/s per °C difference (boiler → home)
-static constexpr float HEAT_LOSS_RATE = 1.0f / 86400.0f;  // °C/s per °C difference (home ↔ outdoor)
-
 // FreeRTOS task — waits for a scheduler notification then calls doWaterActuatorSequence().
 void TaskWaterActuator(void* pv) {
     (void)pv;
@@ -36,23 +34,33 @@ void TaskWaterActuator(void* pv) {
     }
 }
 
-// Drives the H-bridge motor controller to run or stop the water pump.
-// spd > 0 → pump ON at full speed (analogWrite 255), IN1 HIGH / IN2 LOW.
-// spd == 0 → pump OFF, both IN pins LOW, enable 0.
+// Drives the water pump relay.
+// on = true → relay HIGH (pump running), on = false → relay LOW (pump stopped).
 // Updates g_WaterPumpSpeed (100 = running, 0 = stopped) and sets health bit 0.
-void driveWaterPump(bool dir, int spd) {
-    if (spd > 0) {
-        digitalWrite(in1Pin, HIGH);
-        digitalWrite(in2Pin, LOW);
-        analogWrite(enablePin, 255);
-        g_WaterPumpSpeed = 100;
-    } else {
-        digitalWrite(in1Pin, LOW);
-        digitalWrite(in2Pin, LOW);
-        analogWrite(enablePin, 0);
-        g_WaterPumpSpeed = 0;
-    }
+void driveWaterPump(bool on) {
+    digitalWrite(PIN_RELAY_PUMP, on ? HIGH : LOW);
+    g_WaterPumpSpeed = on ? 100 : 0;
     systemHealth |= (1 << 0);
+}
+
+// Opens the valve (clockwise relay ON, counter-clockwise OFF).
+void openValve() {
+    digitalWrite(PIN_RELAY_VALVE_CW,  HIGH);
+    digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
+    g_waterValvePosition = 1;
+}
+
+// Closes the valve (counter-clockwise relay ON, clockwise OFF).
+void closeValve() {
+    digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
+    digitalWrite(PIN_RELAY_VALVE_CCW, HIGH);
+    g_waterValvePosition = 0;
+}
+
+// Stops the valve motor (both relays OFF).
+void stopValve() {
+    digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
+    digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
 }
 
 // Evaluates current home temperature against targetHomeTemp and selects the appropriate
@@ -81,30 +89,19 @@ void controlHomeTemp() {
         currentZone = 3;
 
     if (currentZone == 1) {
-        // Too cold — full heat
-        driveWaterPump(true, 255);
-        myservo.write(180);
-        g_waterValvePosition = 180;
+        // Too cold — pump ON, valve open
+        driveWaterPump(true);
+        openValve();
 
     } else if (currentZone == 3) {
-        // Too warm — stop heating
-        driveWaterPump(false, 0);
-        myservo.write(0);
-        g_waterValvePosition = 0;
+        // Too warm — pump OFF, valve closed
+        driveWaterPump(false);
+        closeValve();
 
     } else {
-        // Equilibrium — valve position where gain = loss
-        // Solve: HEAT_GAIN_RATE * gainFactor * (boiler - home) = HEAT_LOSS_RATE * (home - outdoor)
-        float heaterDelta = g_heaterWaterTemp - g_homeTemp;
-        int pos = 0;
-        if (heaterDelta > 0.0f) {
-            float gainFactor = (HEAT_LOSS_RATE * (g_homeTemp - g_outdoorTemp)) / (HEAT_GAIN_RATE * heaterDelta);
-            float valveF = (gainFactor - 0.10f) / 0.90f * 180.0f;
-            pos = (int)constrain(valveF, 0.0f, 180.0f);
-        }
-        driveWaterPump(true, 255);
-        myservo.write(pos);
-        g_waterValvePosition = pos;
+        // Equilibrium — pump ON, valve stopped (holds current position)
+        driveWaterPump(true);
+        stopValve();
     }
 }
 

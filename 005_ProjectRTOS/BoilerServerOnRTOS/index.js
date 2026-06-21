@@ -52,7 +52,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const brokerUrl = 'mqtts://d72dc8b632b04c8c91c4702a5b164d59.s1.eu.hivemq.cloud:8883';
 const options = {
-    clientId: 'Server_Bridge_Main', // Fixed ID to prevent session stacking
+    clientId: 'Server_Bridge_Local', // Fixed ID to prevent session stacking
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
     clean: true,                  // Cleans up the session when you disconnect
@@ -209,7 +209,7 @@ client.on('message', (topic, message) => {
             console.log(`\n🐝 [HIVE] Device: ${data.deviceId || 'Unknown'} @ ${timestamp}`);
             console.log(`| DHT Temp: ${data.dhtTempC}°C | Humidity: ${data.dhtHumidity}% | Home: ${data.homeTempC}°C`);
             console.log(`| WaterPump: ${data.waterpumpactivation} | Heater: ${data.heaterActivation} | WaterValve: ${data.waterValvePosition}`);
-            console.log(`| Heater Water Temp: ${data.heaterWaterTemp}°C | Boiler1: ${data.boiler1Temp ?? 'N/A'}°C | Boiler2: ${data.boiler2Temp ?? 'N/A'}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
+            console.log(`| Heater Water Temp: ${data.heaterWaterTemp}°C | Boiler1: ${data.boiler1Temp}°C | Boiler2: ${data.boiler2Temp}°C | Health: 0x${Number(data.systemHealth).toString(16).toUpperCase()}`);
             console.log(`| Heater: ${data.heaterState ? 'ON' : 'OFF'} | Target Home: ${data.targetHomeTemp}°C`);
             console.log('---------------------------------------------------------');
 

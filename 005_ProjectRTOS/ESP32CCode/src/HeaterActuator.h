@@ -1,5 +1,5 @@
-#ifndef HEATER_H
-#define HEATER_H
+#ifndef HEATER_ACTUATOR_H
+#define HEATER_ACTUATOR_H
 
 #include "ProjectHeater.h"
 
