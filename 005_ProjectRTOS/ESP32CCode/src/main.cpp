@@ -185,6 +185,7 @@ void loop() {
 // If any bit is missing the kick is skipped, the hardware WDT fires, and the system resets.
 // systemHealth is cleared to 0x00 at the end of every cycle regardless of outcome.
 void TaskwatchdogMonitor(void *pv) {
+    vTaskDelay(pdMS_TO_TICKS(40000)); // wait for startup sequence (2×15s delay + margin)
     esp_task_wdt_add(NULL);   // Register this task with the ESP32 watchdog
     for (;;) {
         // Logic: Only refresh if the mask matches our requirements
