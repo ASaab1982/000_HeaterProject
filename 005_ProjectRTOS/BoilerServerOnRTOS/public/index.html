@@ -130,6 +130,11 @@
             <tr><td>Target Home</td><td class="val"><span id="targetHomeTemp">--</span> °C</td></tr>
             <tr><td>Heater Setpoint</td><td class="val"><span id="heaterTempSetPoint">--</span> °C</td></tr>
         </table>
+        <!-- Home Temperature vs Setpoint Graph -->
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <canvas id="homeTempChart" height="120"></canvas>
+        </div>
+
         <div class="heater-controls">
             <!-- [MANUAL OVERRIDE] 2x2 grid: mode toggle + heater ON/OFF -->
             <div class="button-grid">
@@ -157,6 +162,7 @@
      4Server sends back a loginResponse (True or False).
      5UI updates instantly to show the heater controls or an error.
      -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -255,6 +261,8 @@
             document.getElementById('systemHealth').innerText = healthBin;
             const now = new Date();
             document.getElementById('time-val').innerText = now.toLocaleTimeString();
+            if (data.deviceId === 'ESP' && data.homeTempC != null && data.targetHomeTemp != null)
+                updateChart(Number(data.homeTempC), Number(data.targetHomeTemp), Number(data.waterValvePosition ?? 0));
             const card = document.getElementById('boiler-card');
             card.classList.add('online');
             setTimeout(() => card.classList.remove('online'), 500);
@@ -373,6 +381,80 @@
          *   Now uses selectedDevice directly instead of reading boiler-id-display.
          *   Commands are sent to the correct device topic automatically.
          */
+
+        // --- HOME TEMPERATURE CHART ---
+        const MAX_POINTS = 20;  // rolling window — ~100 min at 5 min/update
+        const chartLabels   = [];
+        const chartActual   = [];
+        const chartSetpoint = [];
+        const chartValve    = [];
+
+        const homeTempChart = new Chart(document.getElementById('homeTempChart'), {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    {
+                        label: 'Home Temp (°C)',
+                        data: chartActual,
+                        borderColor: '#1976d2',
+                        backgroundColor: 'rgba(25,118,210,0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'yTemp',
+                    },
+                    {
+                        label: 'Setpoint (°C)',
+                        data: chartSetpoint,
+                        borderColor: '#d32f2f',
+                        borderWidth: 2,
+                        borderDash: [6, 3],
+                        pointRadius: 0,
+                        tension: 0,
+                        fill: false,
+                        yAxisID: 'yTemp',
+                    },
+                    {
+                        label: 'Valve (%)',
+                        data: chartValve,
+                        borderColor: '#f57c00',
+                        backgroundColor: 'rgba(245,124,0,0.08)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'yValve',
+                    }
+                ]
+            },
+            options: {
+                animation: false,
+                responsive: true,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    x: { ticks: { maxTicksLimit: 6 } },
+                    yTemp:  { type: 'linear', position: 'left',  title: { display: true, text: '°C' }, min: -15, max: 45 },
+                    yValve: { type: 'linear', position: 'right', title: { display: true, text: '%' }, min: 0, max: 100, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+
+        function updateChart(homeTemp, setpoint, valve) {
+            const now = new Date().toLocaleTimeString();
+            chartLabels.push(now);
+            chartActual.push(homeTemp);
+            chartSetpoint.push(setpoint);
+            chartValve.push(valve);
+            if (chartLabels.length > MAX_POINTS) {
+                chartLabels.shift();
+                chartActual.shift();
+                chartSetpoint.shift();
+                chartValve.shift();
+            }
+            homeTempChart.update();
+        }
 
         socket.on('connect', () => console.log('Connected to Server Bridge!'));
 

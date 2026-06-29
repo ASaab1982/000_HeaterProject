@@ -50,6 +50,12 @@ volatile float targetHomeTemp = 20.0f;
 // [MANUAL OVERRIDE] true = heater ON/OFF controlled manually from UI
 //                   false = heaterState calculated automatically from boiler temperature vs setpoint
 volatile bool manualOverride = false;
+// [HOME HEATING] true = home heating enabled (pump + valve active), false = both off
+volatile bool g_heatingEnabled = true;
+// [PI CONTROLLER] Target valve position computed by HomeTempControl PI — read by WaterActuator
+volatile float g_valveTarget      = 1.0f;
+volatile float g_piProportional   = 0.0f;
+volatile float g_piIntegral       = 0.0f;
 
 // [SIMULATION] Thermal model variables
 volatile float g_heaterWaterTemp    = 50.0f;  // Startup default — overwritten by NTC reads
@@ -64,6 +70,7 @@ volatile bool g_usePhysicalModel = true;
 
 // [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
 volatile float g_xiaomiHumidity = 0.0f;
+volatile bool  g_xiaomiValid    = false; // true after first successful Xiaomi BLE read
 
 // [NTC] Real temperatures from the four NTC thermistors (NAN until first read)
 volatile float g_boiler1Temp     = NAN;
@@ -76,8 +83,9 @@ volatile float g_waterInletTemp  = NAN;
 // -------------------- Globals -------------------
 
 // Task handles for chaining
- TaskHandle_t hHeater        = nullptr;
- TaskHandle_t hWaterActuator = nullptr;
+ TaskHandle_t hHeater           = nullptr;
+ TaskHandle_t hWaterActuator    = nullptr;
+ TaskHandle_t hHomeTempControl  = nullptr;
  TaskHandle_t hNTC           = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
@@ -87,6 +95,7 @@ volatile float g_waterInletTemp  = NAN;
 
 // --- Task Prototypes ---
 void TaskWaterActuator(void* pv);
+void TaskHomeTempControl(void* pv);
 void TaskNTC(void* pv);
 void TaskMonitor(void* pv);
 void TaskCloud(void* pv);
@@ -136,8 +145,11 @@ void setup() {
   ok = xTaskCreatePinnedToCore(TaskHeater,        "TaskHeater",       2048, nullptr, 1, &hHeater,        1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHeater create failed"));        for(;;){} }
 
-  ok = xTaskCreatePinnedToCore(TaskWaterActuator, "TaskWaterActuator",2048, nullptr, 1, &hWaterActuator,  1);
+  ok = xTaskCreatePinnedToCore(TaskWaterActuator,  "TaskWaterActuator", 2048, nullptr, 1, &hWaterActuator,   1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskWaterActuator create failed")); for(;;){} }
+
+  ok = xTaskCreatePinnedToCore(TaskHomeTempControl,"TaskHomeTempCtrl",  2048, nullptr, 1, &hHomeTempControl, 1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTempControl create failed")); for(;;){} }
 
   ok = xTaskCreatePinnedToCore(TaskNTC,           "TaskNTC",          2048, nullptr, 1, &hNTC,            1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskNTC create failed"));           for(;;){} }

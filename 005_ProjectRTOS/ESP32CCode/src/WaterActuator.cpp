@@ -1,31 +1,28 @@
 /*
- * WaterActuator.cpp — Water pump and servo valve control
+ * WaterActuator.cpp — Water pump and valve relay driver
  *
- * This file drives the water pump relay (PIN_RELAY_PUMP, GPIO 10) and the motorised valve
- * relays (PIN_RELAY_VALVE_CW GPIO 11, PIN_RELAY_VALVE_CCW GPIO 12) to regulate home air
- * temperature towards targetHomeTemp.
+ * Runs every 1.5 s (notified by TaskTimeScheduler).
+ * Drives the pump relay and moves the valve one step per call toward
+ * g_valveTarget, which is computed by TaskHomeTempControl (every 5 min).
  *
- * Control strategy — 3-zone logic with ±0.5 °C deadband and 0.2 °C hysteresis:
+ * Startup: valve is driven fully open (CW relay ON for 150 s) before any
+ * PI control activates, to establish a known reference position.
  *
- *   Zone 1 (too cold) : home temp < target − 0.6 °C
- *       → pump ON at full speed, valve fully open (180°)
- *
- *   Zone 2 (equilibrium) : target − 0.4 °C ≤ home temp ≤ target + 0.4 °C
- *       → pump ON, valve at the position where heat gain from boiler equals heat loss
- *          to outdoors (HEAT_GAIN_RATE / HEAT_LOSS_RATE defined below)
- *
- *   Zone 3 (too warm) : home temp > target + 0.6 °C
- *       → pump OFF, valve fully closed (0°)
- *
- * Hysteresis prevents rapid zone bouncing at the boundaries.
- *
- * Health bits: bit 0 (pump, set inside driveWaterPump) and bit 5 (valve, set in
- * doWaterActuatorSequence) must both be set for the watchdog to consider this task healthy.
+ * Valve position is tracked by dead reckoning (no physical sensor):
+ *   VALVE_STEP = 1.5 s / 150 s = 1% of full stroke per call.
  */
 
 #include "WaterActuator.h"
+#include "DebugMacros.h"
 
-// FreeRTOS task — waits for a scheduler notification then calls doWaterActuatorSequence().
+static constexpr float VALVE_STROKE_S = 150.0f;
+static constexpr float TASK_PERIOD_S  = 1.5f;
+static constexpr float VALVE_STEP     = TASK_PERIOD_S / VALVE_STROKE_S;
+
+static bool     s_valveInitDone    = false;
+static uint32_t s_valveInitStartMs = 0;
+static float    s_valvePos         = 0.0f;   // current estimated position [0,1]
+
 void TaskWaterActuator(void* pv) {
     (void)pv;
     for (;;) {
@@ -34,79 +31,88 @@ void TaskWaterActuator(void* pv) {
     }
 }
 
-// Drives the water pump relay.
-// on = true → relay HIGH (pump running), on = false → relay LOW (pump stopped).
-// Updates g_WaterPumpSpeed (100 = running, 0 = stopped) and sets health bit 0.
 void driveWaterPump(bool on) {
     digitalWrite(PIN_RELAY_PUMP, on ? HIGH : LOW);
     g_WaterPumpSpeed = on ? 100 : 0;
     systemHealth |= (1 << 0);
 }
 
-// Opens the valve (clockwise relay ON, counter-clockwise OFF).
 void openValve() {
     digitalWrite(PIN_RELAY_VALVE_CW,  HIGH);
     digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
-    g_waterValvePosition = 1;
 }
 
-// Closes the valve (counter-clockwise relay ON, clockwise OFF).
 void closeValve() {
     digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
     digitalWrite(PIN_RELAY_VALVE_CCW, HIGH);
-    g_waterValvePosition = 0;
 }
 
-// Stops the valve motor (both relays OFF).
 void stopValve() {
     digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
     digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
 }
 
-// Evaluates current home temperature against targetHomeTemp and selects the appropriate
-// zone, then sets pump speed and valve position accordingly.  Zone transitions use
-// hysteresis to avoid rapid switching at boundaries.  In equilibrium (zone 2) the valve
-// angle is computed analytically so heat gain exactly offsets heat loss to outdoors.
-void controlHomeTemp() {
-    static int currentZone = 2;  // start in equilibrium zone
-
-    const float deadband   = 0.5f;
-    const float hysteresis = 0.1f;  // half of 0.2°C — applied to each side of each boundary
-
-    // Hysteresis thresholds:
-    //   Zone1→Zone2 exit  : homeTemp > target - deadband + hysteresis  (target - 0.4°C)
-    //   Zone2→Zone1 entry : homeTemp < target - deadband - hysteresis  (target - 0.6°C)
-    //   Zone2→Zone3 entry : homeTemp > target + deadband + hysteresis  (target + 0.6°C)
-    //   Zone3→Zone2 exit  : homeTemp < target + deadband - hysteresis  (target + 0.4°C)
-
-    if (currentZone == 1 && g_homeTemp > targetHomeTemp - deadband + hysteresis)
-        currentZone = 2;
-    else if (currentZone == 3 && g_homeTemp < targetHomeTemp + deadband - hysteresis)
-        currentZone = 2;
-    else if (currentZone == 2 && g_homeTemp < targetHomeTemp - deadband - hysteresis)
-        currentZone = 1;
-    else if (currentZone == 2 && g_homeTemp > targetHomeTemp + deadband + hysteresis)
-        currentZone = 3;
-
-    if (currentZone == 1) {
-        // Too cold — pump ON, valve open
-        driveWaterPump(true);
+// Moves valve one step per call toward target. Stops when reached.
+static void driveValveToward(float target) {
+    float delta = target - s_valvePos;
+    if (delta > VALVE_STEP) {
         openValve();
-
-    } else if (currentZone == 3) {
-        // Too warm — pump OFF, valve closed
-        driveWaterPump(false);
+        s_valvePos += VALVE_STEP;
+    } else if (delta < -VALVE_STEP) {
         closeValve();
-
+        s_valvePos -= VALVE_STEP;
     } else {
-        // Equilibrium — pump ON, valve stopped (holds current position)
-        driveWaterPump(true);
         stopValve();
+        s_valvePos = target;
     }
+    g_waterValvePosition = (int)(s_valvePos * 100);
 }
 
-// Called each cycle by TaskWaterActuator: runs controlHomeTemp() then sets health bit 5.
 void doWaterActuatorSequence() {
-    controlHomeTemp();
+    // Heating disabled — pump OFF, valve stopped
+    if (!g_heatingEnabled) {
+        driveWaterPump(false);
+        stopValve();
+        D_PRINTLN(F("[WaterActuator] Heating: DISABLED"));
+        systemHealth |= (1 << 5);
+        return;
+    }
+
+    // Startup: drive valve fully open for 150 s before PI activates
+    if (!s_valveInitDone) {
+        driveWaterPump(false);
+        if (s_valveInitStartMs == 0) {
+            openValve();
+            s_valveInitStartMs = millis();
+        }
+        uint32_t elapsed = (millis() - s_valveInitStartMs) / 1000;
+        g_waterValvePosition = (int)((float)elapsed / VALVE_STROKE_S * 100.0f);
+        D_PRINT(F("[WaterActuator] Valve init: "));
+        D_PRINT(elapsed);
+        D_PRINTLN(F(" s / 150 s"));
+        if (millis() - s_valveInitStartMs >= (uint32_t)(VALVE_STROKE_S * 1000.0f)) {
+            stopValve();
+            s_valvePos      = 1.0f;
+            s_valveInitDone = true;
+        }
+        systemHealth |= (1 << 5);
+        return;
+    }
+
+    // Drive pump and valve toward PI target
+    bool controlOn = (g_valveTarget > 0.0f);
+    driveWaterPump(controlOn);
+    driveValveToward(g_valveTarget);
+
+    D_PRINT(F("[WaterActuator] Pump: "));
+    D_PRINT(controlOn ? F("ON") : F("OFF"));
+    D_PRINT(F("  Valve: "));
+    D_PRINT(g_waterValvePosition);
+    D_PRINTLN(F("%"));
+    D_PRINT(F("[WaterActuator] P: "));
+    D_PRINT(g_piProportional);
+    D_PRINT(F("  I: "));
+    D_PRINTLN(g_piIntegral);
+
     systemHealth |= (1 << 5);
 }

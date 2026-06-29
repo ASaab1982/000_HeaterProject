@@ -37,6 +37,11 @@ void TaskTimeScheduler(void* pv) {
   TickType_t xCloudFireTick  = 0;      // tick when cloud last fired
   bool       xiaomiPending   = false;  // true once cloud fires, cleared when Xiaomi is notified
 
+  // Trigger the first Xiaomi BLE read immediately at startup so g_homeTemp is seeded
+  // before any control loop uses it — without this it would wait 5 min (cloud) + 2 min (offset).
+  if (hXiaomiBLE)        xTaskNotifyGive(hXiaomiBLE);
+  if (hHomeTempControl)  xTaskNotifyGive(hHomeTempControl);
+
   for (;;) {
     if (hHeater)        xTaskNotifyGive(hHeater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
@@ -59,6 +64,7 @@ void TaskTimeScheduler(void* pv) {
     if (xiaomiPending && hXiaomiBLE &&
         (xTaskGetTickCount() - xCloudFireTick >= xXiaomiOffset)) {
         xTaskNotifyGive(hXiaomiBLE);
+        if (hHomeTempControl) xTaskNotifyGive(hHomeTempControl);
         xiaomiPending = false;
     }
 

@@ -28,6 +28,7 @@
 
 #include "XiaomiBLE.h"
 #include "ProjectHeater.h"
+#include "WaterModel.h"
 
 static const char* SVC_UUID  = "EBE0CCB0-7A0A-4B0C-8A1A-6FF2997DA3A6";
 static const char* CHAR_UUID = "EBE0CCC1-7A0A-4B0C-8A1A-6FF2997DA3A6";
@@ -51,6 +52,7 @@ static void parsePayload(const uint8_t* data, size_t len) {
     if (len < 3) return;
     g_homeTemp       = (int16_t)((data[1] << 8) | data[0]) / 100.0f;
     g_xiaomiHumidity = data[2];
+    g_xiaomiValid    = true;
     D_PRINT(F("[Xiaomi] Temp: "));
     D_PRINT(g_homeTemp);
     D_PRINT(F(" C  Hum: "));
@@ -157,5 +159,6 @@ void TaskXiaomiBLE(void* pv) {
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         readSensor(pClient);
+        updateWaterModel();
     }
 }

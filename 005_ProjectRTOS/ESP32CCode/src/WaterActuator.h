@@ -7,7 +7,6 @@ void driveWaterPump(bool on);
 void openValve();
 void closeValve();
 void stopValve();
-void controlHomeTemp();
 void doWaterActuatorSequence();
 void TaskWaterActuator(void* pv);
 

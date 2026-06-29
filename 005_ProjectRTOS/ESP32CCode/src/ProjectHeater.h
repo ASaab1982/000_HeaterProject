@@ -10,6 +10,7 @@
 #include "HeaterActuator.h"
 #include "HeaterModel.h"   // [HEATER MODEL] Boiler water temperature simulation
 #include "WaterActuator.h"
+#include "HomeHempControl.h"
 #include "Secrets.h"
 #include "DebugMacros.h"
 #include "HeapMonitor.h"
@@ -41,6 +42,12 @@ extern volatile bool heaterState;
 extern volatile float targetHomeTemp;
 // [MANUAL OVERRIDE] true = manual UI control, false = automatic thermostat logic in HeaterActuator.cpp
 extern volatile bool manualOverride;
+// [HOME HEATING] true = home heating enabled (pump + valve active), false = both off
+extern volatile bool g_heatingEnabled;
+// [PI CONTROLLER] Target valve position computed by HomeTempControl PI — read by WaterActuator
+extern volatile float g_valveTarget;
+extern volatile float g_piProportional;
+extern volatile float g_piIntegral;
 
 // [SIMULATION] Thermal model variables
 extern volatile float g_heaterWaterTemp;    // Simulated boiler water temperature (°C)
@@ -57,7 +64,7 @@ extern volatile float g_boiler2Temp;
 extern volatile float g_waterOutletTemp;
 extern volatile float g_waterInletTemp;
 
-extern TaskHandle_t hHeater, hWaterActuator, hNTC,
+extern TaskHandle_t hHeater, hWaterActuator, hHomeTempControl, hNTC,
                      hHeapMonitor, hTimeScheduler,
                      hWatchdog, hTaskCloud, hXiaomiBLE;
 // --- Function declaration ---

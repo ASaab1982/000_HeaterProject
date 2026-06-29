@@ -11,6 +11,7 @@
 
 // Humidity kept as a separate global — useful for cloud telemetry
 extern volatile float g_xiaomiHumidity;
+extern volatile bool  g_xiaomiValid;    // true after first successful Xiaomi BLE read
 
 void TaskXiaomiBLE(void* pv);
 
