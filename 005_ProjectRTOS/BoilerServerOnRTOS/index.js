@@ -57,7 +57,8 @@ const options = {
     password: process.env.MQTT_PASSWORD,
     clean: true,                  // Cleans up the session when you disconnect
     connectTimeout: 4000,         // Wait 4 seconds for initial connection
-    reconnectPeriod: 1000         // Try to reconnect every 1 second if offline
+    reconnectPeriod: 1000,        // Try to reconnect every 1 second if offline
+    keepalive: 30                 // Send MQTT ping every 30 seconds to keep connection alive
 };
 
 const client = mqtt.connect(brokerUrl, options);
@@ -232,7 +233,7 @@ client.on('message', (topic, message) => {
 // This catches the case where the Arduino freezes or loses WiFi without a clean disconnect.
 setInterval(() => {
     const now = Date.now();
-    const TIMEOUT = 90000;
+    const TIMEOUT = 900000; // 15 minutes
 
     Object.values(boilerStates).forEach(state => {
         if (state.connectionStatus !== 'offline' && (now - (state.lastSeen || 0) > TIMEOUT)) {

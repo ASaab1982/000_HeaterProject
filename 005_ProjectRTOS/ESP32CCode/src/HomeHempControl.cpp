@@ -22,8 +22,8 @@
 
 // PI gains — tune to match house thermal response
 static constexpr float KP            = 1.0f;
-static constexpr float KI            = 0.001f;
-static constexpr float TASK_PERIOD_S = 300.0f;  // 5 minutes between calls
+static constexpr float KI            = 0.0001f;
+static constexpr float TASK_PERIOD_S = 300.0f;  // 300 s between calls
 
 static bool  s_controlActive  = false;
 static float s_integral       = 0.0f;
@@ -60,7 +60,11 @@ void TaskHomeTempControl(void* pv) {
 
         // PI calculation
         float error = targetHomeTemp - g_homeTemp;
-        s_integral += error * TASK_PERIOD_S;
+        if (fabsf(error) < 1.0f) {
+            s_integral += error * TASK_PERIOD_S;
+        } else {
+            s_integral = 0.0f;
+        }
 
         float output = KP * error + KI * s_integral;
         g_piProportional = KP * error;

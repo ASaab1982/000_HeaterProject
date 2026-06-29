@@ -40,7 +40,7 @@ void TaskCloud(void *pvParameters) {
 
     static bool alertSent = false;
     static unsigned long lastConnectionTime = millis(); // Track the last time we were OK
-    const unsigned long REBOOT_THRESHOLD = 600000;      // 10 Minutes (in ms)
+    const unsigned long REBOOT_THRESHOLD = 900000;      // 10 Minutes (in ms)
 
 
     initializeCloud();
