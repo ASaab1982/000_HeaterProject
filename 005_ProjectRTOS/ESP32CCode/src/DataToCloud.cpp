@@ -183,6 +183,11 @@ void onMqttMessageReceived(int messageSize) {
         return;
     }
 
+    if (g_safeState) {
+        Serial.println(F("[DIAG] Safe state active — command ignored"));
+        return;
+    }
+
     const char* command = doc["command"];
     if (command && strcmp(command, "heater") == 0) {
         // [MANUAL OVERRIDE] Only apply ON/OFF command when manual override is active

@@ -49,6 +49,10 @@ void TaskTimeScheduler(void* pv) {
 
 
   for (;;) {
+    Serial.print(F("[Scheduler] Cycle @ ")); Serial.print(millis()); Serial.println(F(" ms"));
+    if (hDiagFunctional) xTaskNotifyGive(hDiagFunctional);
+    vTaskDelayUntil(&xLastWakeTime, xInterval);
+
     if (hHeater)        xTaskNotifyGive(hHeater);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
@@ -71,6 +75,8 @@ void TaskTimeScheduler(void* pv) {
         if (hHomeTempControl) xTaskNotifyGive(hHomeTempControl);
         xLastXiaomiTime = xTaskGetTickCount();
     }
+    vTaskDelayUntil(&xLastWakeTime, xInterval);
+
 
     if (hHeapMonitor)   xTaskNotifyGive(hHeapMonitor);
     vTaskDelayUntil(&xLastWakeTime, xInterval);

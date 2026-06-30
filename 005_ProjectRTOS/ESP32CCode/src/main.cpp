@@ -52,6 +52,8 @@ volatile float targetHomeTemp = 20.0f;
 volatile bool manualOverride = false;
 // [HOME HEATING] true = home heating enabled (pump + valve active), false = both off
 volatile bool g_heatingEnabled = true;
+// [SAFE STATE] true = diagnostic failure — all actuators off, UI commands blocked
+volatile bool g_safeState = false;
 // [PI CONTROLLER] Target valve position computed by HomeTempControl PI — read by WaterActuator
 volatile float g_valveTarget      = 1.0f;
 volatile float g_piProportional   = 0.0f;
@@ -88,6 +90,7 @@ volatile float g_waterInletTemp  = NAN;
  TaskHandle_t hHeater           = nullptr;
  TaskHandle_t hWaterActuator    = nullptr;
  TaskHandle_t hHomeTempControl  = nullptr;
+ TaskHandle_t hDiagFunctional  = nullptr;
  TaskHandle_t hNTC           = nullptr;
  TaskHandle_t hHeapMonitor   = nullptr;
  TaskHandle_t hTimeScheduler    = nullptr;
@@ -152,6 +155,9 @@ void setup() {
 
   ok = xTaskCreatePinnedToCore(TaskHomeTempControl,"TaskHomeTempCtrl",  2048, nullptr, 1, &hHomeTempControl, 1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskHomeTempControl create failed")); for(;;){} }
+
+  ok = xTaskCreatePinnedToCore(TaskDiagFunctional, "TaskDiagFunctional", 2048, nullptr, 2, &hDiagFunctional,  1);
+  if (ok != pdPASS) { D_PRINTLN(F("TaskDiagFunctional create failed")); for(;;){} }
 
   ok = xTaskCreatePinnedToCore(TaskNTC,           "TaskNTC",          2048, nullptr, 1, &hNTC,            1);
   if (ok != pdPASS) { D_PRINTLN(F("TaskNTC create failed"));           for(;;){} }

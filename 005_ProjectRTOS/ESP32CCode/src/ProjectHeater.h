@@ -11,6 +11,7 @@
 #include "HeaterModel.h"   // [HEATER MODEL] Boiler water temperature simulation
 #include "WaterActuator.h"
 #include "HomeHempControl.h"
+#include "DiagFunctional.h"
 #include "Secrets.h"
 #include "DebugMacros.h"
 #include "HeapMonitor.h"
@@ -44,6 +45,8 @@ extern volatile float targetHomeTemp;
 extern volatile bool manualOverride;
 // [HOME HEATING] true = home heating enabled (pump + valve active), false = both off
 extern volatile bool g_heatingEnabled;
+// [SAFE STATE] true = diagnostic failure — all actuators off, UI commands blocked
+extern volatile bool g_safeState;
 // [PI CONTROLLER] Target valve position computed by HomeTempControl PI — read by WaterActuator
 extern volatile float g_valveTarget;
 extern volatile float g_piProportional;
@@ -68,7 +71,7 @@ extern volatile float g_waterInletTemp;
 
 extern TaskHandle_t hHeater, hWaterActuator, hHomeTempControl, hNTC,
                      hHeapMonitor, hTimeScheduler,
-                     hWatchdog, hTaskCloud, hXiaomiBLE;
+                     hWatchdog, hTaskCloud, hXiaomiBLE, hDiagFunctional;
 // --- Function declaration ---
 
 void TaskwatchdogMonitor(void* pv);

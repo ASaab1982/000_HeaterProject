@@ -16,7 +16,7 @@
 #include "DebugMacros.h"
 
 static constexpr float VALVE_STROKE_S = 150.0f;
-static constexpr float TASK_PERIOD_S  = 1.5f;
+static constexpr float TASK_PERIOD_S  = 2.0f;
 static constexpr float VALVE_STEP     = TASK_PERIOD_S / VALVE_STROKE_S;
 
 static bool     s_valveInitDone    = false;
@@ -27,6 +27,12 @@ void TaskWaterActuator(void* pv) {
     (void)pv;
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (g_safeState) {
+            digitalWrite(PIN_RELAY_PUMP,      LOW);
+            digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
+            digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
+            continue;
+        }
         doWaterActuatorSequence();
     }
 }
