@@ -48,6 +48,8 @@ extern volatile bool g_heatingEnabled;
 extern volatile float g_valveTarget;
 extern volatile float g_piProportional;
 extern volatile float g_piIntegral;
+extern volatile float g_piKp;
+extern volatile float g_piKi;
 
 // [SIMULATION] Thermal model variables
 extern volatile float g_heaterWaterTemp;    // Simulated boiler water temperature (°C)

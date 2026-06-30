@@ -56,6 +56,8 @@ volatile bool g_heatingEnabled = true;
 volatile float g_valveTarget      = 1.0f;
 volatile float g_piProportional   = 0.0f;
 volatile float g_piIntegral       = 0.0f;
+volatile float g_piKp             = 1.0f;
+volatile float g_piKi             = 0.0001f;
 
 // [SIMULATION] Thermal model variables
 volatile float g_heaterWaterTemp    = 50.0f;  // Startup default — overwritten by NTC reads

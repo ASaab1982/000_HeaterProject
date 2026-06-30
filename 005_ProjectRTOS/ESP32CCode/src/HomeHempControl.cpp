@@ -20,9 +20,6 @@
 #include "ProjectHeater.h"
 #include "DebugMacros.h"
 
-// PI gains — tune to match house thermal response
-static constexpr float KP            = 1.0f;
-static constexpr float KI            = 0.0001f;
 static constexpr float TASK_PERIOD_S = 300.0f;  // 300 s between calls
 
 static bool  s_controlActive  = false;
@@ -66,9 +63,9 @@ void TaskHomeTempControl(void* pv) {
             s_integral = 0.0f;
         }
 
-        float output = KP * error + KI * s_integral;
-        g_piProportional = KP * error;
-        g_piIntegral     = KI * s_integral;
+        float output = g_piKp * error + g_piKi * s_integral;
+        g_piProportional = g_piKp * error;
+        g_piIntegral     = g_piKi * s_integral;
 
         // Clamp with anti-windup
         if (output > 1.0f) {

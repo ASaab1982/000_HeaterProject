@@ -135,6 +135,21 @@
             <canvas id="homeTempChart" height="120"></canvas>
         </div>
 
+        <!-- PI Controller Gains -->
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <div style="color:#1976d2; font-size:0.8em; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">🎛️ PI Controller Gains</div>
+            <table style="margin-top:0;">
+                <tr><td>KP (current)</td><td class="val"><span id="kp-display">1.0000</span></td></tr>
+                <tr><td>KI (current)</td><td class="val"><span id="ki-display">0.0001</span></td></tr>
+            </table>
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="number" id="kp-input" placeholder="New KP" step="0.01" style="width:120px; display:inline-block;">
+                <input type="number" id="ki-input" placeholder="New KI" step="0.00001" style="width:120px; display:inline-block;">
+                <button onclick="syncPIGains()" style="width:auto; padding:10px 20px;">Synchronise</button>
+            </div>
+            <div id="pi-error" style="color:#1976d2; font-size:0.8em; margin-top:5px; min-height:1em;"></div>
+        </div>
+
         <div class="heater-controls">
             <!-- [MANUAL OVERRIDE] 2x2 grid: mode toggle + heater ON/OFF -->
             <div class="button-grid">
@@ -351,6 +366,22 @@
                 payload.value = value;
             }
             socket.emit('heaterCommand', { deviceId: deviceId, payload: payload });
+        }
+
+        function syncPIGains() {
+            const kp = parseFloat(document.getElementById('kp-input').value);
+            const ki = parseFloat(document.getElementById('ki-input').value);
+            const piError = document.getElementById('pi-error');
+            if (isNaN(kp) || isNaN(ki) || kp <= 0 || ki <= 0) {
+                piError.innerText = 'KP and KI must be positive numbers';
+                setTimeout(() => { piError.innerText = ''; }, 3000);
+                return;
+            }
+            socket.emit('heaterCommand', { deviceId: selectedDevice, payload: { command: 'piGains', kp, ki } });
+            document.getElementById('kp-display').innerText = kp.toFixed(4);
+            document.getElementById('ki-display').innerText = ki.toFixed(5);
+            piError.innerText = 'Sent!';
+            setTimeout(() => { piError.innerText = ''; }, 2000);
         }
 
         /*

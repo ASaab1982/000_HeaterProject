@@ -216,6 +216,14 @@ void onMqttMessageReceived(int messageSize) {
         heaterTempSetPoint = value;
         Serial.print(F("Heater SetPoint: ")); Serial.println(heaterTempSetPoint);
         sendHeaterData();
+    } else if (command && strcmp(command, "piGains") == 0) {
+        float kp = doc["kp"];
+        float ki = doc["ki"];
+        if (kp > 0.0f) g_piKp = kp;
+        if (ki > 0.0f) g_piKi = ki;
+        Serial.print(F("[PI] New KP: ")); Serial.print(g_piKp);
+        Serial.print(F("  KI: ")); Serial.println(g_piKi);
+        sendHeaterData();
     } else if (command && strcmp(command, "weather") == 0) {
         g_outdoorTemp     = doc["outdoorTemp"];
         g_outdoorHumidity = doc["outdoorHumidity"];
