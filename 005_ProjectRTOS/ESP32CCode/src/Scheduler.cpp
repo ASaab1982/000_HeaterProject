@@ -37,11 +37,16 @@ void TaskTimeScheduler(void* pv) {
 
   // Trigger the first Xiaomi BLE read immediately at startup so g_homeTemp is seeded
   // before any control loop uses it — without this it would wait 5 min (cloud) + 2 min (offset).
-  if (hXiaomiBLE)       xTaskNotifyGive(hXiaomiBLE);
-  vTaskDelay(pdMS_TO_TICKS(15000));
+  if (hXiaomiBLE) xTaskNotifyGive(hXiaomiBLE);
+
+  // Wait for first valid Xiaomi reading, max 2 minutes
+  TickType_t xWaitStart = xTaskGetTickCount();
+  while (!g_xiaomiValid && (xTaskGetTickCount() - xWaitStart < pdMS_TO_TICKS(120000))) //  minutes timeout to get the initial value on the xiaomi sensor
+      vTaskDelay(pdMS_TO_TICKS(500));
+
   if (hTaskCloud)       xTaskNotifyGive(hTaskCloud);
-  vTaskDelay(pdMS_TO_TICKS(15000));
   if (hHomeTempControl) xTaskNotifyGive(hHomeTempControl);
+
 
   for (;;) {
     if (hHeater)        xTaskNotifyGive(hHeater);
