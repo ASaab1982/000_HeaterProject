@@ -31,11 +31,9 @@ void TaskTimeScheduler(void* pv) {
   const TickType_t xInterval = pdMS_TO_TICKS(250);
 
   TickType_t xLastCloudTime  = xTaskGetTickCount();
-  const TickType_t xCloudInterval  = pdMS_TO_TICKS(300000);
-  const TickType_t xXiaomiOffset   = pdMS_TO_TICKS(120000);  // 2 min after cloud push
-
-  TickType_t xCloudFireTick  = 0;      // tick when cloud last fired
-  bool       xiaomiPending   = false;  // true once cloud fires, cleared when Xiaomi is notified
+  TickType_t xLastXiaomiTime = xTaskGetTickCount();
+  const TickType_t xCloudInterval  = pdMS_TO_TICKS(30000);   // 30 seconds
+  const TickType_t xXiaomiInterval = pdMS_TO_TICKS(300000);  // 5 minutes
 
   // Trigger the first Xiaomi BLE read immediately at startup so g_homeTemp is seeded
   // before any control loop uses it — without this it would wait 5 min (cloud) + 2 min (offset).
@@ -55,20 +53,18 @@ void TaskTimeScheduler(void* pv) {
     if (hNTC)           xTaskNotifyGive(hNTC);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    // --- CONDITIONALLY NOTIFY CLOUD (every 5 min) ---
+    // --- CONDITIONALLY NOTIFY CLOUD (every 30 s) ---
     if (hTaskCloud && (xTaskGetTickCount() - xLastCloudTime >= xCloudInterval)) {
         xTaskNotifyGive(hTaskCloud);
         xLastCloudTime = xTaskGetTickCount();
-        xCloudFireTick = xLastCloudTime;  // arm the Xiaomi 7-second delay
-        xiaomiPending  = true;
     }
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    if (xiaomiPending && hXiaomiBLE &&
-        (xTaskGetTickCount() - xCloudFireTick >= xXiaomiOffset)) {
+    // --- CONDITIONALLY NOTIFY XIAOMI + PI (every 5 min) ---
+    if (hXiaomiBLE && (xTaskGetTickCount() - xLastXiaomiTime >= xXiaomiInterval)) {
         xTaskNotifyGive(hXiaomiBLE);
         if (hHomeTempControl) xTaskNotifyGive(hHomeTempControl);
-        xiaomiPending = false;
+        xLastXiaomiTime = xTaskGetTickCount();
     }
 
     if (hHeapMonitor)   xTaskNotifyGive(hHeapMonitor);
@@ -77,7 +73,7 @@ void TaskTimeScheduler(void* pv) {
     if (hWatchdog)      xTaskNotifyGive(hWatchdog);
     vTaskDelayUntil(&xLastWakeTime, xInterval);
 
-    // --- CONDITIONALLY NOTIFY XIAOMI BLE (7 s after cloud, once per cloud cycle) ---
+ 
 
   }
 }

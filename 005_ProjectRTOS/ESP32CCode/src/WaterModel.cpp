@@ -57,12 +57,12 @@ void updateWaterModel() {
     float dt = (now - lastCallMs) / 1000.0f;
     lastCallMs = now;
 
-    bool pumpOn  = (g_WaterPumpSpeed > 0);
-    bool valveOpen = (g_waterValvePosition != 0);
+    bool  pumpOn   = (g_WaterPumpSpeed > 0);
+    float valveOpen = g_waterValvePosition / 100.0f;  // 0.0 to 1.0
 
     float heatGain = 0.0f;
-    if (pumpOn && valveOpen)
-        heatGain = GAIN_RATE * (g_heaterWaterTemp - modelHomeTemp);
+    if (pumpOn && valveOpen > 0.0f)
+        heatGain = GAIN_RATE * (g_heaterWaterTemp - modelHomeTemp) * valveOpen;
 
     float heatLoss = LOSS_RATE * (modelHomeTemp - g_outdoorTemp);
 
