@@ -50,9 +50,10 @@ static XiaomiClientCB s_clientCB;
 
 static void parsePayload(const uint8_t* data, size_t len) {
     if (len < 3) return;
-    g_homeTemp       = (int16_t)((data[1] << 8) | data[0]) / 100.0f;
-    g_xiaomiHumidity = data[2];
-    g_xiaomiValid    = true;
+    g_homeTemp         = (int16_t)((data[1] << 8) | data[0]) / 100.0f;
+    g_xiaomiHumidity   = data[2];
+    g_xiaomiLastReadMs = millis();
+    g_xiaomiValid      = true;
     D_PRINT(F("[Xiaomi] Temp: "));
     D_PRINT(g_homeTemp);
     D_PRINT(F(" C  Hum: "));

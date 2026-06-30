@@ -74,7 +74,8 @@ volatile bool g_usePhysicalModel = true;
 
 // [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
 volatile float g_xiaomiHumidity = 0.0f;
-volatile bool  g_xiaomiValid    = false; // true after first successful Xiaomi BLE read
+volatile bool     g_xiaomiValid      = false;   // true after first successful Xiaomi BLE read
+volatile uint32_t g_xiaomiLastReadMs = 0;       // millis() of last valid Xiaomi reading
 
 // [NTC] Real temperatures from the four NTC thermistors (NAN until first read)
 volatile float g_boiler1Temp     = NAN;

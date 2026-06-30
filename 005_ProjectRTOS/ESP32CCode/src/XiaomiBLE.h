@@ -10,8 +10,9 @@
 #define XIAOMI_SENSOR_MAC  "a4:c1:38:57:b9:f1"
 
 // Humidity kept as a separate global — useful for cloud telemetry
-extern volatile float g_xiaomiHumidity;
-extern volatile bool  g_xiaomiValid;    // true after first successful Xiaomi BLE read
+extern volatile float    g_xiaomiHumidity;
+extern volatile bool     g_xiaomiValid;         // true after first successful Xiaomi BLE read
+extern volatile uint32_t g_xiaomiLastReadMs;    // millis() of last valid Xiaomi reading
 
 void TaskXiaomiBLE(void* pv);
 
