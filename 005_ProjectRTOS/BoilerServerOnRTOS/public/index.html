@@ -100,6 +100,7 @@
                 <!-- GENERIC -->
                 <tr><td colspan="2" style="color:#1976d2; font-size:0.8em; text-transform:uppercase; padding-top:14px; padding-bottom:4px; letter-spacing:1px;">🔧 Generic</td></tr>
                 <tr><td>System Health</td><td class="val"><span id="systemHealth">--</span></td></tr>
+                <tr><td>Safe State</td><td class="val"><span id="safeState">--</span></td></tr>
             </tbody>
         </table>
         
@@ -274,6 +275,8 @@
             document.getElementById('heaterTempSetPoint').innerText = data.heaterTempSetPoint ?? '--';
             const healthBin = Number(data.systemHealth || 0).toString(2).padStart(8, '0');
             document.getElementById('systemHealth').innerText = healthBin;
+            document.getElementById('safeState').innerText = data.safeState ? 'ACTIVE' : 'Not active';
+            document.getElementById('safeState').style.color = data.safeState ? '#d32f2f' : '#388e3c';
             const now = new Date();
             document.getElementById('time-val').innerText = now.toLocaleTimeString();
             if (data.deviceId === 'ESP' && data.homeTempC != null && data.targetHomeTemp != null)

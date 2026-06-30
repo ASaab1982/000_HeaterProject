@@ -70,7 +70,7 @@ volatile float heaterTempSetPoint   = 40.0f;  // Startup default — boiler wate
 
 // [HEATER MODEL] false = use NTC sensor values directly (Option 1)
 //                true  = use physics model seeded from sensors at startup (Option 2)
-volatile bool g_usePhysicalModel = true;
+volatile bool g_usePhysicalModel = false;
 
 // [XIAOMI BLE] Humidity from the Xiaomi Mi 2 sensor (temperature goes straight to g_homeTemp).
 volatile float g_xiaomiHumidity = 0.0f;

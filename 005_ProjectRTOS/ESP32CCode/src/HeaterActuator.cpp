@@ -24,7 +24,9 @@ void TaskHeater(void* pv) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (g_safeState) {
         digitalWrite(PIN_RELAY_HEATER, LOW);
-        heaterState = false;
+        heaterState      = false;
+        g_heaterPosition = 0;
+        systemHealth |= (1 << 4);
         continue;
     }
     doHeaterSequence();

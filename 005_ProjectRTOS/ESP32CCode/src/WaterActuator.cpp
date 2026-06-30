@@ -31,6 +31,9 @@ void TaskWaterActuator(void* pv) {
             digitalWrite(PIN_RELAY_PUMP,      LOW);
             digitalWrite(PIN_RELAY_VALVE_CW,  LOW);
             digitalWrite(PIN_RELAY_VALVE_CCW, LOW);
+            g_WaterPumpSpeed = 0;
+            systemHealth |= (1 << 0);
+            systemHealth |= (1 << 5);
             continue;
         }
         doWaterActuatorSequence();

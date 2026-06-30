@@ -148,6 +148,7 @@ void sendHeaterData() {
     if (isnan(g_boiler2Temp))     doc["boiler2Temp"]     = nullptr; else doc["boiler2Temp"]     = (float)g_boiler2Temp;
     if (isnan(g_waterOutletTemp)) doc["waterOutletTemp"] = nullptr; else doc["waterOutletTemp"] = (float)g_waterOutletTemp;
     if (isnan(g_waterInletTemp))  doc["waterInletTemp"]  = nullptr; else doc["waterInletTemp"]  = (float)g_waterInletTemp;
+    doc["safeState"] = (bool)g_safeState;
     
     // Serialize to String first so ArduinoMqttClient knows the exact payload size.
     // Without this, the library defaults to a 256-byte buffer and truncates larger JSON.
